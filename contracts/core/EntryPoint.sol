@@ -509,12 +509,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             }
             validationData = _callValidateUserOp(op, opInfo, missingAccountFunds, opIndex);
             if (paymaster == address(0)) {
-                DepositInfo storage senderInfo = deposits[sender];
-                uint256 deposit = senderInfo.deposit;
-                if (requiredPrefund > deposit) {
+                if (!_decrementDeposit(sender, requiredPrefund)) {
                     revert FailedOp(opIndex, "AA21 didn't pay prefund");
                 }
-                senderInfo.deposit = deposit - requiredPrefund;
             }
         }
     }
@@ -567,12 +564,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             uint256 preGas = gasleft();
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
             address paymaster = mUserOp.paymaster;
-            DepositInfo storage paymasterInfo = deposits[paymaster];
-            uint256 deposit = paymasterInfo.deposit;
-            if (deposit < requiredPreFund) {
+            if (!_decrementDeposit(paymaster, requiredPreFund)) {
                 revert FailedOp(opIndex, "AA31 paymaster deposit too low");
             }
-            paymasterInfo.deposit = deposit - requiredPreFund;
             uint256 pmVerificationGasLimit = mUserOp.paymasterVerificationGasLimit;
             try
                 IPaymaster(paymaster).validatePaymasterUserOp{gas: pmVerificationGasLimit}(

@@ -43,6 +43,7 @@ abstract contract StakeManager is IStakeManager {
         depositTo(msg.sender);
     }
 
+
     /**
      * Increments an account's deposit.
      * @param account - The account to increment.
@@ -50,10 +51,23 @@ abstract contract StakeManager is IStakeManager {
      * @return the updated deposit of this account
      */
     function _incrementDeposit(address account, uint256 amount) internal returns (uint256) {
-        DepositInfo storage info = deposits[account];
-        uint256 newAmount = info.deposit + amount;
-        info.deposit = newAmount;
-        return newAmount;
+        unchecked {
+            DepositInfo storage info = deposits[account];
+            uint256 newAmount = info.deposit + amount;
+            info.deposit = newAmount;
+            return newAmount;
+        }
+    }
+
+    function _decrementDeposit(address account, uint256 amount) internal returns(bool) {
+        unchecked {
+            DepositInfo storage info = deposits[account];
+            if (info.deposit < amount) {
+                return false;
+            }
+            info.deposit -= amount;
+            return true;
+        }
     }
 
     /**
