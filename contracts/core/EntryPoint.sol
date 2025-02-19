@@ -835,15 +835,22 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         }
     }
 
-    // safe free memory pointer.
+    /**
+     * save free memory pointer.
+     * save "free memory" pointer, so that it can be restored later using restoreFreePtr.
+     * This reduce unneeded memory expansion, and reduce memory expansion cost.
+     * NOTE: all dynamic allocations between saveFreePtr and restoreFreePtr MUST NOT be used after restoreFreePtr is called.
+     */
     function getFreePtr() internal pure returns (uint256 ptr) {
         assembly ("memory-safe") {
             ptr := mload(0x40)
         }
     }
 
-    // restore free memory pointer.
-    // no allocated memory since saveFreePtr was called is allowed to be accessed after this call.
+    /**
+     * restore free memory pointer.
+     * any allocated memory since saveFreePtr is cleared, and MUST NOT be accessed later.
+     */
     function restoreFreePtr(uint256 ptr) internal pure {
         assembly ("memory-safe") {
             mstore(0x40, ptr)
