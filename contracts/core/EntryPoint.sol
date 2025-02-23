@@ -181,7 +181,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     function handleOps(
         PackedUserOperation[] calldata ops,
         address payable beneficiary
-    ) public nonReentrant {
+    ) external nonReentrant {
         uint256 opslen = ops.length;
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
 
