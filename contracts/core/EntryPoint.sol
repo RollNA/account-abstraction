@@ -693,9 +693,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             requiredPreFund
         );
 
-        if (!_validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce)) {
-            revert FailedOp(opIndex, "AA25 invalid account nonce");
-        }
+        require(
+            _validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce),
+            FailedOp(opIndex, "AA25 invalid account nonce")
+        );
 
         unchecked {
             if (preGas - gasleft() > _getVerificationGasLimit(verificationGasLimit)) {
