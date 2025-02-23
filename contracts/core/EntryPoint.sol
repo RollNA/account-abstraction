@@ -233,7 +233,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             if (address(aggregator) != address(0)) {
                 // solhint-disable-next-line no-empty-blocks
                 try aggregator.validateSignatures(ops, opa.signature) {} catch {
-                    revert SignatureValidationFailed(address(aggregator));
+                    revert SignatureValidationFailed(totalOps + 1, address(aggregator));
                 }
             }
 
