@@ -405,7 +405,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             );
             address paymaster;
             (paymaster, mUserOp.paymasterVerificationGasLimit, mUserOp.paymasterPostOpGasLimit) = UserOperationLib.unpackPaymasterStaticFields(paymasterAndData);
-            require(paymaster != address(0), "AA93 invalid paymaster");
+            require(paymaster != address(0), "AA98 invalid paymaster");
             mUserOp.paymaster = paymaster;
         }
     }
