@@ -1125,7 +1125,7 @@ describe('EntryPoint', function () {
             userOps: [userOp],
             aggregator: aggregator.address,
             signature: wrongSig
-          }], beneficiaryAddress)).to.revertedWith(`SignatureValidationFailed("${aggAddress}")`)
+          }], beneficiaryAddress)).to.revertedWith(`SignatureValidationFailed(0, "${aggAddress}")`)
       })
 
       it('should run with multiple aggregators (and non-aggregated-accounts)', async () => {
@@ -1263,7 +1263,7 @@ describe('EntryPoint', function () {
           callGasLimit: 1e6
         }, account2Owner, entryPoint)
         op.paymasterAndData = AddressZero.padEnd(200, '0')
-        await expect(entryPoint.handleOps([op], beneficiaryAddress)).to.revertedWith('AA93 invalid paymaster')
+        await expect(entryPoint.handleOps([op], beneficiaryAddress)).to.revertedWith('AA98 invalid paymaster')
       })
       it('should fail with nonexistent paymaster', async () => {
         const pm = createAddress()
