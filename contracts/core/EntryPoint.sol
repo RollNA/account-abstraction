@@ -199,7 +199,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
 
         unchecked {
-            for (uint256 i; i < opslen; i++) {
+            for (uint256 i = 0; i < opslen; i++) {
                 UserOpInfo memory opInfo = opInfos[i];
                 (
                     uint256 validationData,
@@ -216,7 +216,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             uint256 collected = 0;
             emit BeforeExecution();
 
-            for (uint256 i; i < opslen; i++) {
+            for (uint256 i = 0; i < opslen; i++) {
                 collected += _executeUserOp(i, ops[i], opInfos[i]);
             }
 
@@ -232,7 +232,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         uint256 opasLen = opsPerAggregator.length;
         uint256 totalOps = 0;
-        for (uint256 i; i < opasLen; i++) {
+        for (uint256 i = 0; i < opasLen; i++) {
             UserOpsPerAggregator calldata opa = opsPerAggregator[i];
             PackedUserOperation[] calldata ops = opa.userOps;
             IAggregator aggregator = opa.aggregator;
@@ -262,7 +262,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             IAggregator aggregator = opa.aggregator;
 
             uint256 opslen = ops.length;
-            for (uint256 i; i < opslen; i++) {
+            for (uint256 i = 0; i < opslen; i++) {
                 UserOpInfo memory opInfo = opInfos[opIndex];
                 (
                     uint256 validationData,
@@ -288,7 +288,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             PackedUserOperation[] calldata ops = opa.userOps;
             uint256 opslen = ops.length;
 
-            for (uint256 i; i < opslen; i++) {
+            for (uint256 i = 0; i < opslen; i++) {
                 collected += _executeUserOp(opIndex, ops[i], opInfos[opIndex]);
                 opIndex++;
             }
