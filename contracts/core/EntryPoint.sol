@@ -649,7 +649,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         }
         ValidationData memory data = _parseValidationData(validationData);
         // solhint-disable-next-line not-rely-on-time
-        outOfTimeRange = block.timestamp > data.validUntil || block.timestamp < data.validAfter;
+        outOfTimeRange = block.timestamp > data.validUntil || block.timestamp <= data.validAfter;
         aggregator = data.aggregator;
     }
 
