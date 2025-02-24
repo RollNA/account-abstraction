@@ -240,13 +240,13 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             //address(1) is special marker of "signature error"
             require(
                 address(aggregator) != address(1),
-                FailedOp(totalOps + i, "AA96 invalid aggregator")
+                SignatureValidationFailed(address(aggregator))
             );
 
             if (address(aggregator) != address(0)) {
                 // solhint-disable-next-line no-empty-blocks
                 try aggregator.validateSignatures(ops, opa.signature) {} catch {
-                    revert SignatureValidationFailed(totalOps + i, address(aggregator));
+                    revert SignatureValidationFailed(address(aggregator));
                 }
             }
 

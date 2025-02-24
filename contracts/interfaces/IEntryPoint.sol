@@ -130,7 +130,7 @@ interface IEntryPoint is IStakeManager, INonceManager {
      * Error case when a signature aggregator fails to verify the aggregated signature it had created.
      * @param aggregator The aggregator that failed to verify the signature
      */
-    error SignatureValidationFailed(uint256 opIndex, address aggregator);
+    error SignatureValidationFailed(address aggregator);
 
     // Return value of getSenderAddress.
     error SenderAddressResult(address sender);
