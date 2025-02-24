@@ -1125,7 +1125,7 @@ describe('EntryPoint', function () {
             userOps: [userOp],
             aggregator: aggregator.address,
             signature: wrongSig
-          }], beneficiaryAddress)).to.revertedWith(`SignatureValidationFailed(0, "${aggAddress}")`)
+          }], beneficiaryAddress)).to.revertedWith(`SignatureValidationFailed("${aggAddress}")`)
       })
 
       it('should run with multiple aggregators (and non-aggregated-accounts)', async () => {
