@@ -801,23 +801,23 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             actualGas += preGas - gasleft() + postOpUnusedGasPenalty;
             actualGasCost = actualGas * gasPrice;
             uint256 prefund = opInfo.prefund;
-            if (prefund < actualGasCost) {
-                if (mode == IPaymaster.PostOpMode.postOpReverted) {
-                    actualGasCost = prefund;
-                    emitPrefundTooLow(opInfo);
-                    emitUserOperationEvent(opInfo, false, actualGasCost, actualGas);
-                } else {
-                    assembly ("memory-safe") {
-                        mstore(0, INNER_REVERT_LOW_PREFUND)
-                        revert(0, 32)
-                    }
+            bool success = mode == IPaymaster.PostOpMode.opSucceeded;
+
+            if (prefund < actualGasCost && mode != IPaymaster.PostOpMode.postOpReverted) {
+                assembly ("memory-safe") {
+                    mstore(0, INNER_REVERT_LOW_PREFUND)
+                    revert(0, 32)
                 }
-            } else {
-                uint256 refund = prefund - actualGasCost;
-                _incrementDeposit(refundAddress, refund);
-                bool success = mode == IPaymaster.PostOpMode.opSucceeded;
-                emitUserOperationEvent(opInfo, success, actualGasCost, actualGas);
             }
+
+            if (prefund < actualGasCost) {
+                actualGasCost = prefund;
+                emitPrefundTooLow(opInfo);
+            }
+
+            uint256 refund = prefund - actualGasCost;
+            _incrementDeposit(refundAddress, refund);
+            emitUserOperationEvent(opInfo, success, actualGasCost, actualGas);
         } // unchecked
     }
 
