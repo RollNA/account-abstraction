@@ -1109,7 +1109,7 @@ describe('EntryPoint', function () {
           aggregator: address1,
           signature: sig
         }], beneficiaryAddress).catch(e => e.reason))
-          .to.match(/invalid aggregator/)
+          .to.match(/SignatureValidationFailed/)
         // (different error in coverage mode (because of different solidity settings)
       })
 
