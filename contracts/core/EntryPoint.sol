@@ -764,40 +764,35 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     ) internal virtual returns (uint256 actualGasCost) {
         uint256 preGas = gasleft();
         unchecked {
-            address refundAddress;
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
             uint256 gasPrice = getUserOpGasPrice(mUserOp);
 
             address paymaster = mUserOp.paymaster;
             // Calculating a penalty for unused execution gas
-            {
-                uint256 executionGasUsed = actualGas - opInfo.preOpGas;
-                // this check is required for the gas used within EntryPoint and not covered by explicit gas limits
-                actualGas += _getUnusedGasPenalty(executionGasUsed, mUserOp.callGasLimit);
-            }
+            uint256 executionGasUsed = actualGas - opInfo.preOpGas;
+            // this check is required for the gas used within EntryPoint and not covered by explicit gas limits
+            actualGas += _getUnusedGasPenalty(executionGasUsed, mUserOp.callGasLimit);
             uint256 postOpUnusedGasPenalty;
-            if (paymaster == address(0)) {
-                refundAddress = mUserOp.sender;
-            } else {
+            uint256 postOpGasUsed;
+            address refundAddress = mUserOp.sender;
+            if (paymaster != address(0)) {
                 refundAddress = paymaster;
-                if (context.length > 0) {
-                    actualGasCost = actualGas * gasPrice;
-                    uint256 postOpPreGas = gasleft();
-                    if (mode != IPaymaster.PostOpMode.postOpReverted) {
-                        try IPaymaster(paymaster).postOp{
-                            gas: mUserOp.paymasterPostOpGasLimit
-                        }(mode, context, actualGasCost, gasPrice)
-                        // solhint-disable-next-line no-empty-blocks
-                        {} catch {
-                            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                            revert PostOpReverted(reason);
-                        }
-                    }
-                    // Calculating a penalty for unused postOp gas
-                    uint256 postOpGasUsed = postOpPreGas - gasleft();
-                    postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, mUserOp.paymasterPostOpGasLimit);
-                }
             }
+            if (paymaster != address(0) && context.length > 0 && mode != IPaymaster.PostOpMode.postOpReverted) {
+                actualGasCost = actualGas * gasPrice;
+                uint256 postOpPreGas = gasleft();
+                try IPaymaster(paymaster).postOp{
+                    gas: mUserOp.paymasterPostOpGasLimit
+                }(mode, context, actualGasCost, gasPrice)
+                // solhint-disable-next-line no-empty-blocks
+                {} catch {
+                    bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                    revert PostOpReverted(reason);
+                }
+                postOpGasUsed = postOpPreGas - gasleft();
+            }
+            // Calculating a penalty for unused postOp gas
+            postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, mUserOp.paymasterPostOpGasLimit);
             actualGas += preGas - gasleft() + postOpUnusedGasPenalty;
             actualGasCost = actualGas * gasPrice;
             uint256 prefund = opInfo.prefund;
