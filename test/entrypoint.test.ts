@@ -1415,15 +1415,21 @@ describe('EntryPoint', function () {
       describe('without postOp', () => {
         it('paymaster should pay for tx including unused gas penalty', async function () {
           const snap = await ethers.provider.send('evm_snapshot', [])
-          await testPaymasterActualGasCost(false)
-          await ethers.provider.send('evm_revert', [snap])
+          try {
+            await testPaymasterActualGasCost(false)
+          } finally {
+            await ethers.provider.send('evm_revert', [snap])
+          }
         })
       })
       describe('with postOp', () => {
         it('paymaster should pay for tx including unused execution and postOp gas penalties', async function () {
           const snap = await ethers.provider.send('evm_snapshot', [])
-          await testPaymasterActualGasCost(true)
-          await ethers.provider.send('evm_revert', [snap])
+          try {
+            await testPaymasterActualGasCost(true)
+          } finally {
+            await ethers.provider.send('evm_revert', [snap])
+          }
         })
       })
 
