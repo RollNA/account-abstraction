@@ -176,7 +176,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             _refundDeposit(opInfo, refund);
             return actualGasCost;
         }
-
     }
 
     /**
@@ -357,6 +356,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param callData - The callData to execute.
      * @param opInfo   - The UserOpInfo struct.
      * @param context  - The context bytes.
+     * @return callSuccess - Whether the call to the account was successful.
      */
     function innerHandleOp(
         bytes memory callData,
@@ -408,7 +408,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         }
     }
 
-    function getPackedUserOpTypeHash() external pure returns (bytes32) {
+    function getPackedUserOpTypeHash() public pure returns (bytes32) {
         return UserOperationLib.PACKED_USEROP_TYPEHASH;
     }
 
