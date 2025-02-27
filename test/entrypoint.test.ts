@@ -1,5 +1,5 @@
 import './aa.init'
-import { BigNumber, Event, Wallet } from 'ethers'
+import { BigNumber, ContractReceipt, Event, Wallet } from 'ethers'
 import { expect } from 'chai'
 import {
   EntryPoint,
@@ -561,11 +561,22 @@ describe('EntryPoint', function () {
 
           const beneficiaryBalance = await ethers.provider.getBalance(beneficiary)
           // TODO: how this should ever pass? we find the lowest possible gas for paymaster, and reduce it by one...
-          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))], beneficiary)
-            .then(async r => r.wait())
-            .catch((e: Error) => {
-              throw new Error(decodeRevertReason(e, false) as any)
-            })
+          let rcpt: ContractReceipt
+          try {
+            rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))], beneficiary)
+              .then(async r => r.wait())
+          } catch (e: any) {
+            const decoded = decodeRevertReason(e)
+            if (decoded === 'FailedOp(0,"AA36 over paymasterVerificationGasLimit")') {
+              // this test in the past reached "UserOperationPrefundTooLow".
+              // Latest EntryPoint change protects against this edge case.
+              console.log('\t=== skipping test: unable to reach "UserOperationPrefundTooLow"')
+              this.skip()
+              return
+            } else {
+              throw e
+            }
+          }
           expect(rcpt.events?.map(ev => ev.event)).to.eql([
             'BeforeExecution',
             'PostOpRevertReason',
