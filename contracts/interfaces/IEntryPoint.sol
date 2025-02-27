@@ -80,15 +80,18 @@ interface IEntryPoint is IStakeManager, INonceManager {
     );
 
     /**
-     * UserOp consumed more than prefund. The UserOperation is reverted, and no refund is made.
+     * UserOp consumed more than prefund.
+     * No refund is made.
      * @param userOpHash   - The request unique identifier.
      * @param sender       - The sender of this request.
      * @param nonce        - The nonce used in the request.
+     * @param innerReverted - execution and postOp calls were reverted.
      */
     event UserOperationPrefundTooLow(
         bytes32 indexed userOpHash,
         address indexed sender,
-        uint256 nonce
+        uint256 nonce,
+        bool innerReverted
     );
 
     /**

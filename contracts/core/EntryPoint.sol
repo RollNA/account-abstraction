@@ -94,7 +94,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     returns (uint256 actualGasCost) {
         uint256 preGas = gasleft();
         bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
-        bool success;
+        bool innerSuccess;
         bytes32 returnData;
         uint256 actualGas;
         {
@@ -116,25 +116,23 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
             }
             assembly ("memory-safe") {
-                success := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64)
+                innerSuccess := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64)
                 returnData := mload(0)
+                // returned by either INNER_REVERT_LOW_PREFUND or successful return.
                 actualGas := mload(32)
             }
             restoreFreePtr(saveFreePtr);
         }
-        bool callSuccess;
-        if (success) {
-            callSuccess = returnData != 0;
+        bool executionSuccess;
+        if (innerSuccess) {
+            executionSuccess = returnData != 0;
         } else {
             bytes32 innerRevertCode = returnData;
             if (innerRevertCode == INNER_OUT_OF_GAS) {
                 // handleOps was called with gas limit too low. abort entire bundle.
                 // can only be caused by bundler (leaving not enough gas for inner call)
                 revert FailedOp(opIndex, "AA95 out of gas");
-            } else if (innerRevertCode == INNER_REVERT_LOW_PREFUND) {
-                // innerCall reverted on prefund too low.
-                // below we re-calculate the cast cost and refund.
-            } else {
+            } else if (innerRevertCode != INNER_REVERT_LOW_PREFUND) {
                 actualGas = preGas - gasleft();
                 actualGas += _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
                 emit PostOpRevertReason(
@@ -148,21 +146,28 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         return _postInnerCall(
             opInfo,
-            callSuccess,
-            actualGas
+            executionSuccess,
+            actualGas,
+            innerSuccess
         );
     }
 
     /**
-     * call after innerCall executed to call the account's callData and paymaster's postOp.
-     * - calculate the overall gas used and unuased penalty.
-     * - refund payer if needed
+     * Process the output of innerCall
+     * - calculate paid gas.
+     * - refund payer if needed.
+     * - emit event of total cost exceeds prefund.
      * - emit UserOperationEvent
+     * @param opInfo           - UserOp fields and info collected during validation.
+     * @param executionSuccess - Whether account execution was successful.
+     * @param actualGas        - actual gas used for execution and postOp
+     * @param innerSuccess     - Whether inner call succeeded or reverted
      */
     function _postInnerCall(
         UserOpInfo memory opInfo,
-        bool callSuccess,
-        uint256 actualGas)
+        bool executionSuccess,
+        uint256 actualGas,
+        bool innerSuccess)
     internal virtual returns (uint256 collected) {
         unchecked {
             uint256 prefund = opInfo.prefund;
@@ -173,9 +178,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             } else {
                 actualGasCost = prefund;
                 //depending where the over-gas-used was found, we either reverted innerCall or not.
-                emitPrefundTooLow(opInfo);
+                emitPrefundTooLow(opInfo, !innerSuccess);
             }
-            emitUserOperationEvent(opInfo, callSuccess, actualGasCost, actualGas);
+            emitUserOperationEvent(opInfo, executionSuccess, actualGasCost, actualGas);
             _refundDeposit(opInfo, refund);
             return actualGasCost;
         }
@@ -206,11 +211,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      *
      * @param opInfo - The details of the current UserOperation.
      */
-    function emitPrefundTooLow(UserOpInfo memory opInfo) internal virtual {
+    function emitPrefundTooLow(UserOpInfo memory opInfo, bool innerReverted) internal virtual {
         emit UserOperationPrefundTooLow(
             opInfo.userOpHash,
             opInfo.mUserOp.sender,
-            opInfo.mUserOp.nonce
+            opInfo.mUserOp.nonce,
+            innerReverted
         );
     }
 
