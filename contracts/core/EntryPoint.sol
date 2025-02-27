@@ -177,7 +177,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 refund = prefund - actualGasCost;
             } else {
                 actualGasCost = prefund;
-                //depending where the over-gas-used was found, we either reverted innerCall or not.
                 emitPrefundTooLow(opInfo, !innerSuccess);
             }
             emitUserOperationEvent(opInfo, executionSuccess, actualGasCost, actualGas);
