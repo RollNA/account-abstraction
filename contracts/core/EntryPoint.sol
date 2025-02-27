@@ -800,15 +800,13 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
             uint256 gasPrice = getUserOpGasPrice(mUserOp);
 
-            address paymaster = mUserOp.paymaster;
             // Calculating a penalty for unused execution gas
             actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
                 uint256 postOpPreGas = gasleft();
                 uint256 actualGasCostForPostOp = actualGas * gasPrice;
-                uint256 paymasterPostOpGasLimit = mUserOp.paymasterPostOpGasLimit;
-                try IPaymaster(paymaster).postOp{
-                        gas: paymasterPostOpGasLimit
+                try IPaymaster(mUserOp.paymaster).postOp{
+                        gas: mUserOp.paymasterPostOpGasLimit
                     }(mode, context, actualGasCostForPostOp, gasPrice)
                 {} catch {
                     bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
@@ -816,13 +814,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 }
                 // Calculating a penalty for unused postOp gas
                 uint256 postOpGasUsed = postOpPreGas - gasleft();
-                uint256 postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, paymasterPostOpGasLimit);
+                uint256 postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, mUserOp.paymasterPostOpGasLimit);
                 actualGas += postOpUnusedGasPenalty;
             }
             actualGas += preGas - gasleft();
             uint256 actualGasCost = actualGas * gasPrice;
-            uint256 prefund = opInfo.prefund;
-            if (prefund < actualGasCost) {
+            if (opInfo.prefund < actualGasCost) {
                 assembly ("memory-safe") {
                     mstore(0, INNER_REVERT_LOW_PREFUND)
                     mstore(32, actualGas)
