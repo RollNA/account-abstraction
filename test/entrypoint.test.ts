@@ -88,7 +88,7 @@ describe('EntryPoint', function () {
   const globalUnstakeDelaySec = 2
   const paymasterStake = ethers.utils.parseEther('2')
   const PENALTY_PERCENTAGE = 10
-  const PENALTY_GAS_THRESHOLD = 4e4
+  const PENALTY_GAS_THRESHOLD = 40000
 
   before(async function () {
     this.timeout(20000)
@@ -535,8 +535,11 @@ describe('EntryPoint', function () {
           const current = await counter.counters(simpleAccount.address)
           // expect calldata to revert below minGas:
           const beneficiaryBalance = await ethers.provider.getBalance(beneficiary)
-          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(vgl - 1, 0, minCallGas))], beneficiary).then(
-            async r => r.wait())
+          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(vgl - 1, 0, minCallGas))], beneficiary)
+            .then(async r => r.wait())
+            .catch((e: Error) => {
+              throw new Error(decodeRevertReason(e, false) as any)
+            })
           expect(rcpt.events?.map(ev => ev.event)).to.eql([
             'BeforeExecution',
             'UserOperationPrefundTooLow',
@@ -557,8 +560,8 @@ describe('EntryPoint', function () {
             entryPoint, 1, 100000, 2)
 
           const beneficiaryBalance = await ethers.provider.getBalance(beneficiary)
-          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))],
-            beneficiary)
+          // TODO: how this should ever pass? we find the lowest possible gas for paymaster, and reduce it by one...
+          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))], beneficiary)
             .then(async r => r.wait())
             .catch((e: Error) => {
               throw new Error(decodeRevertReason(e, false) as any)
@@ -837,7 +840,7 @@ describe('EntryPoint', function () {
 
         const balAfter = await getBalance(simpleAccount.address)
         const depositAfter = await entryPoint.balanceOf(simpleAccount.address)
-        expect(balAfter).to.equal(balBefore, 'should pay from stake, not balance')
+        expect(balAfter).to.equal(balBefore, 'should pay from deposit, not balance')
         const depositUsed = depositBefore.sub(depositAfter)
         expect(await ethers.provider.getBalance(beneficiaryAddress)).to.equal(depositUsed)
 

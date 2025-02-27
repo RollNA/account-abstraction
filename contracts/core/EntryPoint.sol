@@ -142,13 +142,18 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 );
             }
         }
-        {
-            uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
+        unchecked {
+            // total gas used by callData and postOp, including calling into innerCall
+            uint256 actualGas = preGas - gasleft();
+            uint256 unusedPenalty = _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
+            actualGas += unusedPenalty + opInfo.preOpGas;
             uint256 actualGasCost = actualGas * getUserOpGasPrice(opInfo.mUserOp);
+            uint256 prefund = opInfo.prefund;
             uint256 refund;
-            if (opInfo.prefund >= actualGasCost) {
-                refund = opInfo.prefund - actualGasCost;
+            if (prefund >= actualGasCost) {
+                refund = prefund - actualGasCost;
             } else {
+                actualGasCost = prefund;
                 //depending where the over-gas-used was found, we either reverted innerCall or not.
                 emitPrefundTooLow(opInfo);
             }
@@ -363,9 +368,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             }
         }
 
+        bool success = true;
         IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
         if (callData.length > 0) {
-            bool success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
+            success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
             if (!success) {
                 bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                 if (result.length > 0) {
@@ -381,9 +387,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         }
 
         unchecked {
-            uint256 executionGas = preGas - gasleft() + opInfo.preOpGas;
-            _callPostOp(mode, opInfo, context, executionGas);
-            return mode == IPaymaster.PostOpMode.opSucceeded;
+            uint256 executionGas = preGas - gasleft();
+            _postExecution(mode, opInfo, context, executionGas);
+            return success;
         }
     }
 
@@ -754,25 +760,24 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param mode      - Whether is called from innerHandleOp, or outside (postOpReverted).
      * @param opInfo    - UserOp fields and info collected during validation.
      * @param context   - The context returned by validatePaymasterUserOp.
-     * @param actualGas - The gas used for execution of this user operation.
+     * @param executionGas - The gas used for execution of this user operation.
      */
 
-    function _callPostOp(
+    function _postExecution(
         IPaymaster.PostOpMode mode,
         UserOpInfo memory opInfo,
         bytes memory context,
-        uint256 actualGas
+        uint256 executionGas
     ) internal virtual {
         uint256 preGas = gasleft();
         unchecked {
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
             uint256 gasPrice = getUserOpGasPrice(mUserOp);
             // Calculating a penalty for unused execution gas
-            actualGas += _getUnusedGasPenalty(actualGas, mUserOp.callGasLimit);
-            actualGas += opInfo.preOpGas;
+            uint256 actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
-                uint256 actualGasCostForPostOp = actualGas * gasPrice;
                 uint256 postOpPreGas = gasleft();
+                uint256 actualGasCostForPostOp = actualGas * gasPrice;
                 address paymaster = mUserOp.paymaster;
                 uint256 paymasterPostOpGasLimit = mUserOp.paymasterPostOpGasLimit;
                 // todo: no real need to check if paymaster has code. we already called validatePaymasdterUserOp
