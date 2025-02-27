@@ -13,7 +13,7 @@ import "../interfaces/IStakeManager.sol";
  */
 abstract contract StakeManager is IStakeManager {
     /// maps paymaster to their deposits and stakes
-    mapping(address => DepositInfo) public deposits;
+    mapping(address => DepositInfo) private deposits;
 
     /// @inheritdoc IStakeManager
     function getDepositInfo(
@@ -43,6 +43,7 @@ abstract contract StakeManager is IStakeManager {
         depositTo(msg.sender);
     }
 
+
     /**
      * Increments an account's deposit.
      * @param account - The account to increment.
@@ -50,26 +51,39 @@ abstract contract StakeManager is IStakeManager {
      * @return the updated deposit of this account
      */
     function _incrementDeposit(address account, uint256 amount) internal returns (uint256) {
-        DepositInfo storage info = deposits[account];
-        uint256 newAmount = info.deposit + amount;
-        info.deposit = newAmount;
-        return newAmount;
+        unchecked {
+            DepositInfo storage info = deposits[account];
+            uint256 newAmount = info.deposit + amount;
+            info.deposit = newAmount;
+            return newAmount;
+        }
     }
 
     /**
-     * Add to the deposit of the given account.
-     * @param account - The account to add to.
+     * Try to dncrement the account's deposit.
+     * @param account - The account to increment.
+     * @param amount  - The amount to increment by.
+     * @return true if the decrement succeeded (that is, previous balance was at least that amount)
      */
+    function _tryDecrementDeposit(address account, uint256 amount) internal returns(bool) {
+        unchecked {
+            DepositInfo storage info = deposits[account];
+            uint256 currentDeposit = info.deposit;
+            if (currentDeposit < amount) {
+                return false;
+            }
+            info.deposit = currentDeposit - amount;
+            return true;
+        }
+    }
+
+    /// @inheritdoc IStakeManager
     function depositTo(address account) public virtual payable {
         uint256 newDeposit = _incrementDeposit(account, msg.value);
         emit Deposited(account, newDeposit);
     }
 
-    /**
-     * Add to the account's stake - amount and delay
-     * any pending unstake is first cancelled.
-     * @param unstakeDelaySec The new lock duration before the deposit can be withdrawn.
-     */
+    /// @inheritdoc IStakeManager
     function addStake(uint32 unstakeDelaySec) public payable {
         DepositInfo storage info = deposits[msg.sender];
         require(unstakeDelaySec > 0, "must specify unstake delay");
@@ -90,10 +104,7 @@ abstract contract StakeManager is IStakeManager {
         emit StakeLocked(msg.sender, stake, unstakeDelaySec);
     }
 
-    /**
-     * Attempt to unlock the stake.
-     * The value can be withdrawn (using withdrawStake) after the unstake delay.
-     */
+    /// @inheritdoc IStakeManager
     function unlockStake() external {
         DepositInfo storage info = deposits[msg.sender];
         require(info.unstakeDelaySec != 0, "not staked");
@@ -104,11 +115,7 @@ abstract contract StakeManager is IStakeManager {
         emit StakeUnlocked(msg.sender, withdrawTime);
     }
 
-    /**
-     * Withdraw from the (unlocked) stake.
-     * Must first call unlockStake and wait for the unstakeDelay to pass.
-     * @param withdrawAddress - The address to send withdrawn value.
-     */
+    /// @inheritdoc IStakeManager
     function withdrawStake(address payable withdrawAddress) external {
         DepositInfo storage info = deposits[msg.sender];
         uint256 stake = info.stake;
@@ -126,18 +133,15 @@ abstract contract StakeManager is IStakeManager {
         require(success, "failed to withdraw stake");
     }
 
-    /**
-     * Withdraw from the deposit.
-     * @param withdrawAddress - The address to send withdrawn value.
-     * @param withdrawAmount  - The amount to withdraw.
-     */
+    /// @inheritdoc IStakeManager
     function withdrawTo(
         address payable withdrawAddress,
         uint256 withdrawAmount
     ) external {
         DepositInfo storage info = deposits[msg.sender];
-        require(withdrawAmount <= info.deposit, "Withdraw amount too large");
-        info.deposit = info.deposit - withdrawAmount;
+        uint256 currentDeposit = info.deposit;
+        require(withdrawAmount <= currentDeposit, "Withdraw amount too large");
+        info.deposit = currentDeposit - withdrawAmount;
         emit Withdrawn(msg.sender, withdrawAddress, withdrawAmount);
         (bool success,) = withdrawAddress.call{value: withdrawAmount}("");
         require(success, "failed to withdraw");
