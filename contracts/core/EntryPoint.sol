@@ -803,7 +803,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             // Calculating a penalty for unused execution gas
             actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
-                uint postOpUnusedGasPenalty = _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
+                uint256 postOpUnusedGasPenalty = _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
                 actualGas += postOpUnusedGasPenalty;
             }
             actualGas += preGas - gasleft();
