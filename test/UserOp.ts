@@ -25,6 +25,7 @@ import { TransactionRequest } from '@ethersproject/abstract-provider'
 import EntryPointSimulationsJson from '../artifacts/contracts/core/EntryPointSimulations.sol/EntryPointSimulations.json'
 import { ethers } from 'hardhat'
 import { IEntryPointSimulations } from '../typechain/contracts/core/EntryPointSimulations'
+import { EIP_7702_MARKER_CODE, EIP_7702_MARKER_INIT_CODE } from '@account-abstraction/utils'
 
 // Matched to domain name, version from EntryPoint.sol:
 const DOMAIN_NAME = 'ERC4337'
@@ -32,8 +33,6 @@ const DOMAIN_VERSION = '1'
 
 // Matched to UserOperationLib.sol:
 const PACKED_USEROP_TYPEHASH = keccak256(Buffer.from('PackedUserOperation(address sender,uint256 nonce,bytes initCode,bytes callData,bytes32 accountGasLimits,uint256 preVerificationGas,bytes32 gasFees,bytes paymasterAndData)'))
-
-export const INITCODE_EIP7702_MARKER = '0x7702'
 
 export function packUserOp (userOp: UserOperation): PackedUserOperation {
   const accountGasLimits = packAccountGasLimits(userOp.verificationGasLimit, userOp.callGasLimit)
@@ -90,12 +89,12 @@ export function getUserOpHash (op: UserOperation, entryPoint: string, chainId: n
 }
 
 export function isEip7702UserOp (op: UserOperation): boolean {
-  return op.initCode != null && hexlify(op.initCode).startsWith(INITCODE_EIP7702_MARKER)
+  return op.initCode != null && hexlify(op.initCode).startsWith(EIP_7702_MARKER_INIT_CODE)
 }
 
 export function updateUserOpForEip7702Hash (op: UserOperation, delegate: string): UserOperation {
   if (!isEip7702UserOp(op)) {
-    throw new Error('initCode should start with INITCODE_EIP7702_MARKER')
+    throw new Error('initCode should start with EIP_7702_MARKER_INIT_CODE')
   }
   let initCode = hexlify(op.initCode)
   if (hexDataLength(initCode) < 20) {
@@ -342,7 +341,7 @@ export async function asyncSignUserOp (op: UserOperation, signer: Wallet | Signe
   if (isEip7702UserOp(userOpToSign)) {
     if (eip7702delegate == null) {
       const senderCode = await provider!.getCode(userOpToSign.sender)
-      if (!senderCode.startsWith('0xef0100')) {
+      if (!senderCode.startsWith(EIP_7702_MARKER_CODE)) {
         if (senderCode === '0x') {
           throw new Error('sender contract not deployed. is this the first EIP-7702 message? add eip7702delegate to options')
         }

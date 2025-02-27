@@ -2,11 +2,12 @@ import { expect } from 'chai'
 
 import { Simple7702Account, Simple7702Account__factory, EntryPoint, TestPaymasterAcceptAll__factory } from '../typechain'
 import { createAccountOwner, createAddress, deployEntryPoint } from './testutils'
-import { fillAndSign, INITCODE_EIP7702_MARKER, packUserOp } from './UserOp'
+import { fillAndSign, packUserOp } from './UserOp'
 import { hexConcat, parseEther } from 'ethers/lib/utils'
 import { signEip7702Authorization } from './eip7702helpers'
 import { GethExecutable } from './GethExecutable'
 import { Wallet } from 'ethers'
+import { EIP_7702_MARKER_CODE, EIP_7702_MARKER_INIT_CODE } from '@account-abstraction/utils'
 
 describe('Simple7702Account.sol', function () {
   // can't deploy coverage "entrypoint" on geth (contract too large)
@@ -53,7 +54,7 @@ describe('Simple7702Account.sol', function () {
       }
       await geth.sendTx(tx)
       expect(await geth.provider.getBalance(eoa.address)).to.equal(sendVal)
-      expect(await geth.provider.getCode(eoa.address)).to.equal(hexConcat(['0xef0100', eip7702delegate.address]))
+      expect(await geth.provider.getCode(eoa.address)).to.equal(hexConcat([EIP_7702_MARKER_CODE, eip7702delegate.address]))
     })
 
     it('should fail call from another account', async () => {
@@ -86,7 +87,7 @@ describe('Simple7702Account.sol', function () {
     const callData = eip7702delegate.interface.encodeFunctionData('execute', [addr1, 1, '0x'])
     const userop = await fillAndSign({
       sender: eoa.address,
-      initCode: INITCODE_EIP7702_MARKER,
+      initCode: EIP_7702_MARKER_INIT_CODE,
       nonce: 0,
       callData
     }, eoa, entryPoint, { eip7702delegate: eip7702delegate.address })
@@ -118,7 +119,7 @@ describe('Simple7702Account.sol', function () {
     const userop = await fillAndSign({
       sender: eoa.address,
       paymaster: paymaster.address,
-      initCode: INITCODE_EIP7702_MARKER,
+      initCode: EIP_7702_MARKER_INIT_CODE,
       nonce: 0,
       callData
     }, eoa, entryPoint, { eip7702delegate: eip7702delegate.address })
