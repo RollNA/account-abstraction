@@ -142,6 +142,21 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 );
             }
         }
+
+        return _postInnerCall(opInfo, callSuccess, preGas);
+    }
+
+    /**
+     * call after innerCall executed to call the account's callData and paymaster's postOp.
+     * - calculate the overall gas used and unuased penalty.
+     * - refund payer if needed
+     * - emit UserOperationEvent
+     */
+    function _postInnerCall(
+        UserOpInfo memory opInfo,
+        bool callSuccess,
+        uint256 preGas)
+    internal virtual returns (uint256 collected) {
         unchecked {
             // total gas used by callData and postOp, including calling into innerCall
             uint256 actualGas = preGas - gasleft();
