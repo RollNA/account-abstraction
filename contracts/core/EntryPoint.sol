@@ -2,6 +2,8 @@
 pragma solidity ^0.8.23;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
+/* solhint-disable no-empty-blocks */
+
 
 import "../interfaces/IAccount.sol";
 import "../interfaces/IAccountExecute.sol";
@@ -143,7 +145,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         {
             uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
             uint256 actualGasCost = actualGas * getUserOpGasPrice(opInfo.mUserOp);
-            uint refund;
+            uint256 refund;
             if (opInfo.prefund >= actualGasCost) {
                 refund = opInfo.prefund - actualGasCost;
             } else {
@@ -265,7 +267,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             );
 
             if (address(aggregator) != address(0)) {
-                // solhint-disable-next-line no-empty-blocks
                 try aggregator.validateSignatures(ops, opa.signature) {} catch {
                     revert SignatureValidationFailed(address(aggregator));
                 }
@@ -778,7 +779,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 try IPaymaster(paymaster).postOp{
                         gas: paymasterPostOpGasLimit
                     }(mode, context, actualGasCostForPostOp, gasPrice)
-                // solhint-disable-next-line no-empty-blocks
                 {} catch {
                     bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                     revert PostOpReverted(reason);
@@ -789,7 +789,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 actualGas += postOpUnusedGasPenalty;
             }
             actualGas += preGas - gasleft();
-            uint actualGasCost = actualGas * gasPrice;
+            uint256 actualGasCost = actualGas * gasPrice;
             uint256 prefund = opInfo.prefund;
             if (prefund < actualGasCost) {
                 assembly ("memory-safe") {
