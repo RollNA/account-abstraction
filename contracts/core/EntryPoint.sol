@@ -807,7 +807,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 uint256 postOpPreGas = gasleft();
                 uint256 actualGasCostForPostOp = actualGas * gasPrice;
                 uint256 paymasterPostOpGasLimit = mUserOp.paymasterPostOpGasLimit;
-                // todo: no real need to check if paymaster has code. we already called validatePaymasdterUserOp
                 try IPaymaster(paymaster).postOp{
                         gas: paymasterPostOpGasLimit
                     }(mode, context, actualGasCostForPostOp, gasPrice)
