@@ -92,6 +92,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     )
     internal virtual
     returns (uint256 actualGasCost) {
+        uint256 preGas = gasleft();
         bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
         bool success;
         bytes32 returnData;
@@ -134,6 +135,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 // innerCall reverted on prefund too low.
                 // below we re-calculate the cast cost and refund.
             } else {
+                actualGas = preGas - gasleft();
                 emit PostOpRevertReason(
                     opInfo.userOpHash,
                     opInfo.mUserOp.sender,
