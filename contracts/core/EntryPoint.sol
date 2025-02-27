@@ -792,7 +792,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     function _postExecution(
         IPaymaster.PostOpMode mode,
         UserOpInfo memory opInfo,
-        bytes memory context,
+        bytes calldata context,
         uint256 executionGas
     ) internal virtual returns (uint256 actualGas) {
         uint256 preGas = gasleft();
@@ -803,18 +803,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             // Calculating a penalty for unused execution gas
             actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
-                uint256 postOpPreGas = gasleft();
-                uint256 actualGasCostForPostOp = actualGas * gasPrice;
-                try IPaymaster(mUserOp.paymaster).postOp{
-                        gas: mUserOp.paymasterPostOpGasLimit
-                    }(mode, context, actualGasCostForPostOp, gasPrice)
-                {} catch {
-                    bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                    revert PostOpReverted(reason);
-                }
-                // Calculating a penalty for unused postOp gas
-                uint256 postOpGasUsed = postOpPreGas - gasleft();
-                uint256 postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, mUserOp.paymasterPostOpGasLimit);
+                uint postOpUnusedGasPenalty = _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
                 actualGas += postOpUnusedGasPenalty;
             }
             actualGas += preGas - gasleft();
@@ -827,6 +816,28 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 }
             }
         } // unchecked
+    }
+
+    function _callPostOp(
+        MemoryUserOp memory mUserOp,
+        IPaymaster.PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGas,
+        uint256 gasPrice )
+    internal virtual returns (uint256 postOpUnusedGasPenalty) {
+
+        uint256 postOpPreGas = gasleft();
+        uint256 actualGasCostForPostOp = actualGas * gasPrice;
+        try IPaymaster(mUserOp.paymaster).postOp{
+                gas: mUserOp.paymasterPostOpGasLimit
+            }(mode, context, actualGasCostForPostOp, gasPrice)
+        {} catch {
+            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+            revert PostOpReverted(reason);
+        }
+        // Calculating a penalty for unused postOp gas
+        uint256 postOpGasUsed = postOpPreGas - gasleft();
+        postOpUnusedGasPenalty = _getUnusedGasPenalty(postOpGasUsed, mUserOp.paymasterPostOpGasLimit);
     }
 
     function _refundDeposit(UserOpInfo memory opInfo, uint256 refundAmount) internal virtual {
