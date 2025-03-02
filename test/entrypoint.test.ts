@@ -535,8 +535,8 @@ describe('EntryPoint', function () {
           const current = await counter.counters(simpleAccount.address)
           // expect calldata to revert below minGas:
           const beneficiaryBalance = await ethers.provider.getBalance(beneficiary)
-          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(vgl - 1, 0, minCallGas))], beneficiary)
-            .then(async r => r.wait())
+          const rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(vgl - 1, 0, minCallGas))], beneficiary).then(
+            async r => r.wait())
             .catch((e: Error) => {
               throw new Error(decodeRevertReason(e, false) as any)
             })
@@ -560,10 +560,10 @@ describe('EntryPoint', function () {
             entryPoint, 1, 100000, 2)
 
           const beneficiaryBalance = await ethers.provider.getBalance(beneficiary)
-          // TODO: how this should ever pass? we find the lowest possible gas for paymaster, and reduce it by one...
           let rcpt: ContractReceipt
           try {
-            rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))], beneficiary)
+            rcpt = await entryPoint.handleOps([packUserOp(await createUserOpWithGas(minVerGas, minPmVerGas - 1, minCallGas))],
+              beneficiary)
               .then(async r => r.wait())
           } catch (e: any) {
             const decoded = decodeRevertReason(e)

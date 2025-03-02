@@ -172,15 +172,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         unchecked {
             uint256 prefund = opInfo.prefund;
             uint256 actualGasCost = actualGas * getUserOpGasPrice(opInfo.mUserOp);
-            uint256 refund;
+            uint256 ramainingGasToRefund;
             if (prefund >= actualGasCost) {
-                refund = prefund - actualGasCost;
+                ramainingGasToRefund = prefund - actualGasCost;
             } else {
                 actualGasCost = prefund;
-                emitPrefundTooLow(opInfo, !innerSuccess);
+                _emitPrefundTooLow(opInfo, !innerSuccess);
             }
-            emitUserOperationEvent(opInfo, executionSuccess, actualGasCost, actualGas);
-            _refundDeposit(opInfo, refund);
+            _emitUserOperationEvent(opInfo, executionSuccess, actualGasCost, actualGas);
+            _refundDeposit(opInfo, ramainingGasToRefund);
             return actualGasCost;
         }
     }
@@ -193,7 +193,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param actualGasCost  - The actual cost of the consumed gas charged from the sender or the paymaster.
      * @param actualGas      - The actual amount of gas used.
      */
-    function emitUserOperationEvent(UserOpInfo memory opInfo, bool success, uint256 actualGasCost, uint256 actualGas) internal virtual {
+    function _emitUserOperationEvent(UserOpInfo memory opInfo, bool success, uint256 actualGasCost, uint256 actualGas) internal virtual {
         emit UserOperationEvent(
             opInfo.userOpHash,
             opInfo.mUserOp.sender,
@@ -210,7 +210,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      *
      * @param opInfo - The details of the current UserOperation.
      */
-    function emitPrefundTooLow(UserOpInfo memory opInfo, bool innerReverted) internal virtual {
+    function _emitPrefundTooLow(UserOpInfo memory opInfo, bool innerReverted) internal virtual {
         emit UserOperationPrefundTooLow(
             opInfo.userOpHash,
             opInfo.mUserOp.sender,
