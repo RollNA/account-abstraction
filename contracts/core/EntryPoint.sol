@@ -132,7 +132,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 // handleOps was called with gas limit too low. abort entire bundle.
                 // can only be caused by bundler (leaving not enough gas for inner call)
                 revert FailedOp(opIndex, "AA95 out of gas");
-            } else if (innerRevertCode != INNER_REVERT_LOW_PREFUND) {
+            }
+            if (innerRevertCode != INNER_REVERT_LOW_PREFUND) {
                 actualGas = preGas - gasleft();
                 actualGas += _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
                 emit PostOpRevertReason(
@@ -142,6 +143,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                     Exec.getReturnData(REVERT_REASON_MAX_LEN)
                 );
             }
+            // no special handling for INNER_REVERT_LOW_PREFUND: it already reverted inside inner call,
+            // and postInnerCall below will call _emitPrefundTooLow
         }
 
         return _postInnerCall(
