@@ -142,41 +142,39 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         return _postInnerCall(
             opInfo,
-            executionSuccess,
             actualGas,
+            executionSuccess,
             innerSuccess
         );
     }
 
     /**
-     * Process the output of innerCall
-     * - calculate paid gas.
-     * - refund payer if needed.
-     * - emit event of total cost exceeds prefund.
+     * Process the output of innerCall and calculate the cost of the consumed gas.
+     * Perform a refund to the payer if needed.
      * - emit UserOperationEvent
-     * @param opInfo           - UserOp fields and info collected during validation.
-     * @param executionSuccess - Whether account execution was successful.
+     * - emit UserOperationPrefundTooLow event if total gas costs exceed the prefund
+     *
+     * @param opInfo           - the UserOp fields and info collected during validation.
      * @param actualGas        - actual gas used for execution and postOp
-     * @param innerSuccess     - Whether inner call succeeded or reverted
+     * @param executionSuccess - whether account execution was successful.
+     * @param innerSuccess     - whether inner call succeeded or reverted
      */
     function _postInnerCall(
         UserOpInfo memory opInfo,
-        bool executionSuccess,
         uint256 actualGas,
+        bool executionSuccess,
         bool innerSuccess)
     internal virtual returns (uint256 collected) {
         unchecked {
             uint256 prefund = opInfo.prefund;
             uint256 actualGasCost = actualGas * getUserOpGasPrice(opInfo.mUserOp);
-            uint256 ramainingGasToRefund;
-            if (prefund >= actualGasCost) {
-                ramainingGasToRefund = prefund - actualGasCost;
-            } else {
+            if (prefund < actualGasCost) {
                 actualGasCost = prefund;
                 _emitPrefundTooLow(opInfo, !innerSuccess);
             }
+            uint256 remainingGasToRefund = prefund - actualGasCost;
             _emitUserOperationEvent(opInfo, executionSuccess, actualGasCost, actualGas);
-            _refundDeposit(opInfo, ramainingGasToRefund);
+            _refundDeposit(opInfo, remainingGasToRefund);
             return actualGasCost;
         }
     }
