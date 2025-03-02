@@ -94,46 +94,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     returns (uint256 actualGasCost) {
         uint256 preGas = gasleft();
         bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
-        bool innerSuccess;
-        bytes32 returnData;
-        uint256 actualGas;
-        {
-            uint256 saveFreePtr = getFreePtr();
-            bytes calldata callData = userOp.callData;
-            bytes memory innerCall;
-            bytes4 methodSig;
-            assembly {
-                let len := callData.length
-                if gt(len, 3) {
-                    methodSig := calldataload(callData.offset)
-                }
-            }
-            if (methodSig == IAccountExecute.executeUserOp.selector) {
-                bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
-                innerCall = abi.encodeCall(this.innerHandleOp, (executeUserOp, opInfo, context));
-            } else
-            {
-                innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
-            }
-            assembly ("memory-safe") {
-                innerSuccess := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64)
-                returnData := mload(0)
-                // returned by either INNER_REVERT_LOW_PREFUND or successful return.
-                actualGas := mload(32)
-            }
-            restoreFreePtr(saveFreePtr);
-        }
-        bool executionSuccess;
-        if (innerSuccess) {
-            executionSuccess = returnData != 0;
-        } else {
-            bytes32 innerRevertCode = returnData;
-            if (innerRevertCode == INNER_OUT_OF_GAS) {
+        (uint256 returnData, uint256 actualGas) = _callInnerHandleOp(userOp, opInfo, context);
+        if (returnData > 1) {
+            if (bytes32(returnData) == INNER_OUT_OF_GAS) {
                 // handleOps was called with gas limit too low. abort entire bundle.
                 // can only be caused by bundler (leaving not enough gas for inner call)
                 revert FailedOp(opIndex, "AA95 out of gas");
             }
-            if (innerRevertCode != INNER_REVERT_LOW_PREFUND) {
+            if (bytes32(returnData) != INNER_REVERT_LOW_PREFUND) {
                 actualGas = preGas - gasleft();
                 actualGas += _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
                 emit PostOpRevertReason(
@@ -147,12 +115,53 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             // and postInnerCall below will call _emitPrefundTooLow
         }
 
+        bool executionSuccess = returnData == 0;
+        bool innerSuccess = returnData <= 1;
         return _postInnerCall(
             opInfo,
             executionSuccess,
             actualGas,
             innerSuccess
         );
+    }
+
+    /**
+     * call innerHandleOp
+     * call innerHandleOp either with userOp.callData or (if it starts with executeUserOp selector) build an executeUserOp call
+     * @return returnData - 0 - execution success
+     *                      1 - execution call reverted
+     *                      anything else - revert forwarded from innerHandleOp
+     */
+    function _callInnerHandleOp(
+        PackedUserOperation calldata userOp,
+        UserOpInfo memory opInfo,
+        bytes memory context
+    ) internal virtual returns (uint256 returnData, uint256 actualGas) {
+        bool innerSuccess;
+        uint256 saveFreePtr = getFreePtr();
+        bytes calldata callData = userOp.callData;
+        bytes memory innerCall;
+        bytes4 methodSig;
+        assembly {
+            let len := callData.length
+            if gt(len, 3) {
+                methodSig := calldataload(callData.offset)
+            }
+        }
+        if (methodSig == IAccountExecute.executeUserOp.selector) {
+            bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
+            innerCall = abi.encodeCall(this.innerHandleOp, (executeUserOp, opInfo, context));
+        } else
+        {
+            innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
+        }
+        assembly ("memory-safe") {
+            innerSuccess := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64)
+            returnData := mload(0)
+        // returned by either INNER_REVERT_LOW_PREFUND or successful return.
+            actualGas := mload(32)
+        }
+        restoreFreePtr(saveFreePtr);
     }
 
     /**
@@ -164,7 +173,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param opInfo           - UserOp fields and info collected during validation.
      * @param executionSuccess - Whether account execution was successful.
      * @param actualGas        - actual gas used for execution and postOp
-     * @param innerSuccess     - Whether inner call succeeded or reverted
+     * @param innerSuccess     - Whether inner call succeeded or reverted (it can only revert on postOp revert or low prefund)
      */
     function _postInnerCall(
         UserOpInfo memory opInfo,
@@ -368,14 +377,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param callData - The callData to execute.
      * @param opInfo   - The UserOpInfo struct.
      * @param context  - The context bytes.
-     * @return callSuccess - return status of sender callData
-     * @return actualGasUsed - gas used by this call, including unused gas penalty
      */
     function innerHandleOp(
         bytes memory callData,
         UserOpInfo memory opInfo,
         bytes calldata context
-    ) external returns (bool callSuccess, uint256 actualGasUsed) {
+    ) external returns (bool executionReverted, uint256 actualGasUsed) {
         uint256 preGas = gasleft();
         require(msg.sender == address(this), "AA92 internal call only");
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -418,7 +425,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         unchecked {
             uint256 executionGas = preGas - gasleft();
             uint256 actualGas = _postExecution(mode, opInfo, context, executionGas);
-            return (mode == IPaymaster.PostOpMode.opSucceeded, actualGas);
+            return (mode != IPaymaster.PostOpMode.opSucceeded, actualGas);
         }
     }
 
