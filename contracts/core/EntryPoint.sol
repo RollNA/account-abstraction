@@ -79,6 +79,44 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     }
 
     /**
+     * call innerHandleOp
+     * call innerHandleOp either with userOp.callData or (if it starts with executeUserOp selector) build an executeUserOp call
+     * @return returnData - 0 - execution success
+     *                      1 - execution call reverted
+     *                      anything else - revert forwarded from innerHandleOp
+     */
+    function _callInnerHandleOp(
+        PackedUserOperation calldata userOp,
+        UserOpInfo memory opInfo
+    ) internal virtual returns (uint256 returnData, uint256 actualGas) {
+        uint256 saveFreePtr = getFreePtr();
+        bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
+        bytes calldata callData = userOp.callData;
+        bytes memory innerCall;
+        bytes4 methodSig;
+        assembly {
+            let len := callData.length
+            if gt(len, 3) {
+                methodSig := calldataload(callData.offset)
+            }
+        }
+        if (methodSig == IAccountExecute.executeUserOp.selector) {
+            bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
+            innerCall = abi.encodeCall(this.innerHandleOp, (executeUserOp, opInfo, context));
+        } else
+        {
+            innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
+        }
+        assembly ("memory-safe") {
+            pop(call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64))
+            returnData := mload(0)
+        // returned by either INNER_REVERT_LOW_PREFUND or successful return.
+            actualGas := mload(32)
+        }
+        restoreFreePtr(saveFreePtr);
+    }
+
+    /**
      * Execute a user operation.
      * @param opIndex    - Index into the opInfo array.
      * @param userOp     - The userOp to execute.
@@ -93,8 +131,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     internal virtual
     returns (uint256 actualGasCost) {
         uint256 preGas = gasleft();
-        bytes memory context = getMemoryBytesFromOffset(opInfo.contextOffset);
-        (uint256 returnData, uint256 actualGas) = _callInnerHandleOp(userOp, opInfo, context);
+        (uint256 returnData, uint256 actualGas) = _callInnerHandleOp(userOp, opInfo);
         if (returnData > 1) {
             if (bytes32(returnData) == INNER_OUT_OF_GAS) {
                 // handleOps was called with gas limit too low. abort entire bundle.
@@ -123,45 +160,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             actualGas,
             innerSuccess
         );
-    }
-
-    /**
-     * call innerHandleOp
-     * call innerHandleOp either with userOp.callData or (if it starts with executeUserOp selector) build an executeUserOp call
-     * @return returnData - 0 - execution success
-     *                      1 - execution call reverted
-     *                      anything else - revert forwarded from innerHandleOp
-     */
-    function _callInnerHandleOp(
-        PackedUserOperation calldata userOp,
-        UserOpInfo memory opInfo,
-        bytes memory context
-    ) internal virtual returns (uint256 returnData, uint256 actualGas) {
-        bool innerSuccess;
-        uint256 saveFreePtr = getFreePtr();
-        bytes calldata callData = userOp.callData;
-        bytes memory innerCall;
-        bytes4 methodSig;
-        assembly {
-            let len := callData.length
-            if gt(len, 3) {
-                methodSig := calldataload(callData.offset)
-            }
-        }
-        if (methodSig == IAccountExecute.executeUserOp.selector) {
-            bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
-            innerCall = abi.encodeCall(this.innerHandleOp, (executeUserOp, opInfo, context));
-        } else
-        {
-            innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
-        }
-        assembly ("memory-safe") {
-            innerSuccess := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 64)
-            returnData := mload(0)
-        // returned by either INNER_REVERT_LOW_PREFUND or successful return.
-            actualGas := mload(32)
-        }
-        restoreFreePtr(saveFreePtr);
     }
 
     /**
