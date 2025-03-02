@@ -123,25 +123,21 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             }
             restoreFreePtr(saveFreePtr);
         }
-        bool executionSuccess;
-        if (innerSuccess) {
-            executionSuccess = returnData != 0;
-        } else {
-            bytes32 innerRevertCode = returnData;
-            if (innerRevertCode == INNER_OUT_OF_GAS) {
-                // handleOps was called with gas limit too low. abort entire bundle.
-                // can only be caused by bundler (leaving not enough gas for inner call)
-                revert FailedOp(opIndex, "AA95 out of gas");
-            } else if (innerRevertCode != INNER_REVERT_LOW_PREFUND) {
-                actualGas = preGas - gasleft();
-                actualGas += _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
-                emit PostOpRevertReason(
-                    opInfo.userOpHash,
-                    opInfo.mUserOp.sender,
-                    opInfo.mUserOp.nonce,
-                    Exec.getReturnData(REVERT_REASON_MAX_LEN)
-                );
-            }
+        bool executionSuccess = innerSuccess && returnData != 0;
+        if (!innerSuccess && returnData == INNER_OUT_OF_GAS) {
+            // handleOps was called with gas limit too low. abort entire bundle.
+            // can only be caused by bundler (leaving not enough gas for inner call)
+            revert FailedOp(opIndex, "AA95 out of gas");
+        }
+        if (!innerSuccess && returnData != INNER_REVERT_LOW_PREFUND) {
+            actualGas = preGas - gasleft();
+            actualGas += _getUnusedGasPenalty(actualGas, opInfo.mUserOp.callGasLimit + opInfo.mUserOp.paymasterPostOpGasLimit);
+            emit PostOpRevertReason(
+                opInfo.userOpHash,
+                opInfo.mUserOp.sender,
+                opInfo.mUserOp.nonce,
+                Exec.getReturnData(REVERT_REASON_MAX_LEN)
+            );
         }
 
         return _postInnerCall(
