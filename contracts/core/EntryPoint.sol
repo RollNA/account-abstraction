@@ -422,7 +422,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         unchecked {
             uint256 executionGas = preGas - gasleft();
-            uint256 actualGas = _postExecution(mode, opInfo, context, executionGas);
+            (
+                bool postOpSuccess,
+                bytes memory postOpRevertReason,
+                bool innerRevertLowPrefund,
+                uint256 actualGas
+            ) = _postExecution(mode, opInfo, context, executionGas);
+        if (!postOpSuccess) {
+            revert PostOpReverted(postOpRevertReason);
+        }
             return (mode != IPaymaster.PostOpMode.opSucceeded, actualGas);
         }
     }
@@ -801,7 +809,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         UserOpInfo memory opInfo,
         bytes calldata context,
         uint256 executionGas
-    ) internal virtual returns (uint256 actualGas) {
+    ) internal virtual returns (
+        bool postOpSuccess,
+        bytes memory postOpRevertReason,
+        bool innerRevertLowPrefund,
+        uint256 actualGas) {
         uint256 preGas = gasleft();
         unchecked {
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -810,7 +822,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             // Calculating a penalty for unused execution gas
             actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
-                uint256 postOpUnusedGasPenalty = _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
+                uint256 postOpUnusedGasPenalty;
+                (postOpSuccess, postOpRevertReason, postOpUnusedGasPenalty) =
+                                _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
                 actualGas += postOpUnusedGasPenalty;
             }
             actualGas += preGas - gasleft();
@@ -831,16 +845,19 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         bytes calldata context,
         uint256 actualGas,
         uint256 gasPrice )
-    internal virtual returns (uint256 postOpUnusedGasPenalty) {
+    internal virtual returns (bool postOpSuccess, bytes memory postOpRevertReason, uint256 postOpUnusedGasPenalty) {
 
         uint256 postOpPreGas = gasleft();
         uint256 actualGasCostForPostOp = actualGas * gasPrice;
+        postOpSuccess = true;
+        // TODO: Use EXEC to catch reverted calls
         try IPaymaster(mUserOp.paymaster).postOp{
                 gas: mUserOp.paymasterPostOpGasLimit
             }(mode, context, actualGasCostForPostOp, gasPrice)
         {} catch {
-            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-            revert PostOpReverted(reason);
+            postOpSuccess = false;
+            postOpRevertReason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+//            revert PostOpReverted(reason);
         }
         // Calculating a penalty for unused postOp gas
         uint256 postOpGasUsed = postOpPreGas - gasleft();
