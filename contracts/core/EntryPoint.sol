@@ -36,6 +36,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     string constant internal DOMAIN_NAME = "ERC4337";
     string constant internal DOMAIN_VERSION = "1";
 
+    enum ExecutionStatus {
+        execOkPostOpOk,
+        execRevertPostOpOk,
+        postOpRevert,
+        innerInsufficientGas,
+        innerInsufficientPrefund
+    }
+
     constructor() EIP712(DOMAIN_NAME, DOMAIN_VERSION)  {
     }
 
@@ -380,7 +388,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         bytes memory callData,
         UserOpInfo memory opInfo,
         bytes calldata context
-    ) external returns (bool executionReverted, uint256 actualGasUsed) {
+    ) external returns (
+        ExecutionStatus executionStatus,
+        uint256 actualGasUsed,
+        bytes memory revertReason
+    ) {
         uint256 preGas = gasleft();
         require(msg.sender == address(this), "AA92 internal call only");
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -394,19 +406,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 mUserOp.paymasterPostOpGasLimit +
                 INNER_GAS_OVERHEAD
             ) {
-                uint256 gasUsed = preGas - gasleft();
-                assembly ("memory-safe") {
-                    mstore(0, INNER_OUT_OF_GAS)
-                    mstore(32, gasUsed)
-                    revert(0, 64)
-                }
+                _innerHandleOpRevert(ExecutionStatus.innerInsufficientGas, 0);
             }
         }
 
-        IPaymaster.PostOpMode mode = IPaymaster.PostOpMode.opSucceeded;
+        bool senderCallSuccess = true;
         if (callData.length > 0) {
-            bool success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
-            if (!success) {
+            senderCallSuccess = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
+            if (!senderCallSuccess) {
                 bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                 if (result.length > 0) {
                     emit UserOperationRevertReason(
@@ -416,7 +423,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         result
                     );
                 }
-                mode = IPaymaster.PostOpMode.opReverted;
             }
         }
 
@@ -424,14 +430,29 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             uint256 executionGas = preGas - gasleft();
             (
                 bool postOpSuccess,
-                bytes memory postOpRevertReason,
                 bool innerRevertLowPrefund,
                 uint256 actualGas
-            ) = _postExecution(mode, opInfo, context, executionGas);
-        if (!postOpSuccess) {
-            revert PostOpReverted(postOpRevertReason);
+            ) = _postExecution(senderCallSuccess, opInfo, context, executionGas);
+            if (!postOpSuccess) {
+                _innerHandleOpRevert(ExecutionStatus.postOpRevert,  actualGas);
+            }
         }
-            return (mode != IPaymaster.PostOpMode.opSucceeded, actualGas);
+    }
+
+    function _innerHandleOpRevert(
+        ExecutionStatus executionStatus,
+        uint256 actualGasUsed
+    ) internal {
+        assembly ("memory-safe") {
+            mstore(0x00, executionStatus)
+            mstore(0x20, actualGasUsed)
+            let returnDataLength := returndatalength()
+            if gt(returnDataLength, REVERT_REASON_MAX_LEN) {
+                returnDataLength := REVERT_REASON_MAX_LEN
+            }
+            mstore(0x40, returnDataLength) // TODO 1: limit max len
+            returndatacopy(0x60, 0, returnDataLength)
+            revert(0x00, add(returnDataLength, 96))
         }
     }
 
@@ -799,21 +820,20 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * Process post-operation, called just after the callData is executed.
      * If a paymaster is defined and its validation returned a non-empty context, its postOp is called.
      * The excess amount is refunded to the account (or paymaster - if it was used in the request).
-     * @param mode      - Whether is called from innerHandleOp, or outside (postOpReverted).
-     * @param opInfo    - UserOp fields and info collected during validation.
-     * @param context   - The context returned in validatePaymasterUserOp.
-     * @param executionGas - The gas used for execution of this user operation.
+     * @param senderCallSuccess      - Whether the execution call to the sender account succeeded or not.
+     * @param opInfo                 - UserOp fields and info collected during validation.
+     * @param context                - The context returned in validatePaymasterUserOp.
+     * @param executionGas           - The gas used for execution of this user operation.
      */
     function _postExecution(
-        IPaymaster.PostOpMode mode,
+        bool senderCallSuccess,
         UserOpInfo memory opInfo,
         bytes calldata context,
         uint256 executionGas
     ) internal virtual returns (
-        bool postOpSuccess,
-        bytes memory postOpRevertReason,
-        bool innerRevertLowPrefund,
-        uint256 actualGas) {
+        ExecutionStatus status,
+        uint256 actualGas
+    ) {
         uint256 preGas = gasleft();
         unchecked {
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -822,42 +842,37 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             // Calculating a penalty for unused execution gas
             actualGas = executionGas + _getUnusedGasPenalty(executionGas, mUserOp.callGasLimit) + opInfo.preOpGas;
             if (context.length > 0) {
+                bool postOpSuccess;
                 uint256 postOpUnusedGasPenalty;
-                (postOpSuccess, postOpRevertReason, postOpUnusedGasPenalty) =
-                                _callPostOp(mUserOp, mode, context, actualGas, gasPrice);
+                (postOpSuccess, postOpUnusedGasPenalty) =
+                                _callPostOp(mUserOp, senderCallSuccess, context, actualGas, gasPrice);
                 actualGas += postOpUnusedGasPenalty;
+                if (!postOpSuccess){
+                    status = ExecutionStatus.postOpRevert;
+                }
             }
             actualGas += preGas - gasleft();
             uint256 actualGasCost = actualGas * gasPrice;
             if (opInfo.prefund < actualGasCost) {
-                assembly ("memory-safe") {
-                    mstore(0, INNER_REVERT_LOW_PREFUND)
-                    mstore(32, actualGas)
-                    revert(0, 64)
-                }
+                status = ExecutionStatus.innerInsufficientPrefund;
             }
         } // unchecked
     }
 
     function _callPostOp(
         MemoryUserOp memory mUserOp,
-        IPaymaster.PostOpMode mode,
+        bool senderCallSuccess,
         bytes calldata context,
         uint256 actualGas,
         uint256 gasPrice )
-    internal virtual returns (bool postOpSuccess, bytes memory postOpRevertReason, uint256 postOpUnusedGasPenalty) {
-
+    internal virtual returns (bool postOpSuccess, uint256 postOpUnusedGasPenalty) {
         uint256 postOpPreGas = gasleft();
         uint256 actualGasCostForPostOp = actualGas * gasPrice;
-        postOpSuccess = true;
-        // TODO: Use EXEC to catch reverted calls
-        try IPaymaster(mUserOp.paymaster).postOp{
-                gas: mUserOp.paymasterPostOpGasLimit
-            }(mode, context, actualGasCostForPostOp, gasPrice)
-        {} catch {
-            postOpSuccess = false;
-            postOpRevertReason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-//            revert PostOpReverted(reason);
+        bytes memory postOpCalldata = abi.encodeCall(IPaymaster.postOp, (mode, context, actualGasCostForPostOp, gasPrice));
+        uint256 gasLimit = mUserOp.paymasterPostOpGasLimit;
+        address pm = mUserOp.paymaster;
+        assembly ("memory-safe") {
+            postOpSuccess := call(gasLimit, pm, 0, add(postOpCalldata, 0x20), mload(postOpCalldata), 0, 0)
         }
         // Calculating a penalty for unused postOp gas
         uint256 postOpGasUsed = postOpPreGas - gasleft();
