@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable no-inline-assembly */
 
+import 'hardhat/console.sol';
+
 import "../interfaces/IAccount.sol";
 import "../interfaces/IAccountExecute.sol";
 import "../interfaces/IEntryPoint.sol";
@@ -207,7 +209,12 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     ) internal returns(uint256 opsLen){
         unchecked {
             opsLen = ops.length;
+            uint freePtr = _getFreePtr();
+            console.log("==start validations %d userOps. pre-alloc UserOpInfo per userop", opsLen, freePtr /opsLen);
+            _restoreFreePtr(freePtr);
             for (uint256 i = 0; i < opsLen; i++) {
+                uint pre_ptr = _getFreePtr();
+                uint pre_gas = gasleft();
                 UserOpInfo memory opInfo = opInfos[opIndexOffset + i];
                 (
                     uint256 validationData,
@@ -219,6 +226,18 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                     pmValidationData,
                     expectedAggregator
                 );
+                uint gas_used = pre_gas - gasleft();
+                uint temp = _getFreePtr();
+                uint mem_used = temp - pre_ptr;
+                console.log('== %d pre-ptr=%d\ts=%d\t,', i, pre_ptr, ops[i].signature.length);
+                if (opInfo.mUserOp.paymaster== address(0)) {
+                    console.log(" ctx.len =\t--\tmem= %d\tgas= %d", mem_used,  gas_used);
+
+                } else {
+                    uint ctxlen = _getMemoryBytesFromOffset(opInfo.contextOffset).length;
+                    console.log(" ctx.len =\t%d\tmem= %d\tgas= %d", ctxlen, mem_used,  gas_used);
+                }
+                _restoreFreePtr(temp);
             }
         }
     }

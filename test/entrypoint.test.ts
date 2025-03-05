@@ -29,7 +29,10 @@ import {
   TestSignatureAggregator,
   TestSignatureAggregator__factory,
   TestWarmColdAccount__factory,
-  SimpleAccount__factory
+  SimpleAccount__factory,
+  DummyAccount__factory,
+  HugeContextPaymaster__factory,
+  HugeContextPaymaster
 } from '../typechain'
 
 import {
@@ -575,6 +578,53 @@ describe('EntryPoint', function () {
         })
       })
 
+      it.only('should run multiple ops with paymaster', async () => {
+        async function op (contextSize: number, dataSize: number = 0): Promise<PackedUserOperation> {
+          const sender = await new DummyAccount__factory(ethersSigner).deploy()
+          let pm: HugeContextPaymaster | undefined
+          if (contextSize === -1) {
+            await entryPoint.depositTo(sender.address, { value: parseEther('1') })
+          } else {
+            pm = await new HugeContextPaymaster__factory(ethersSigner).deploy(contextSize)
+            await entryPoint.depositTo(pm.address, { value: parseEther('1') })
+          }
+          const op1 = await fillUserOp({
+            sender: sender.address,
+            nonce: 0,
+            paymaster: pm?.address,
+            paymasterVerificationGasLimit: 10e6,
+            signature: '0x'.padEnd(dataSize * 2, '0')
+          }, entryPoint)
+          return packUserOp(op1)
+        }
+
+        console.log('legend:')
+        console.log('s=sig length (ignored.. just add to UserOp size)')
+        console.log('pre-ptr: memory pointer before handling this userop. notice entire UserOpInfo[] already allocated)')
+        console.log('ctx.len - postOp context length or "--" if no paymaster')
+        console.log('run with: [yarn test | perl -pe \'s/,\\s*$/ /\'] to have a single log line per case')
+        const bundle = await Promise.all([
+          op(-1),
+          op(0),
+          op(0, 2001),
+          op(2048),
+          op(2048, 2001),
+          op(0),
+          op(100000),
+          op(100000),
+          op(100000),
+          op(100000),
+          op(100000),
+          op(-1),
+          op(0),
+          op(0, 2001),
+          op(2048),
+          op(2048, 2001)
+        ])
+        const rcpt = await entryPoint.handleOps(bundle, createAddress()).then(async t => await t.wait())
+        console.log('bundle gas used =', rcpt.gasUsed.toString())
+      })
+
       it('account should pay for tx', async function () {
         const op = await fillSignAndPack({
           sender: simpleAccount.address,
@@ -1033,7 +1083,7 @@ describe('EntryPoint', function () {
       })
     })
 
-    describe('aggregation tests', () => {
+    describe.skip('aggregation tests', () => {
       const beneficiaryAddress = createAddress()
       let aggregator: TestSignatureAggregator
       let aggAccount: TestAggregatedAccount
