@@ -617,28 +617,31 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         );
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
-        uint256 contextLength;
+        uint newFreePtr;
         assembly {
-            freePtr:= mload(0x40)
             //call and return 3 first words: offset, validation, context-length
             success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
             let contextOffset := mload(freePtr)
             validationData := mload(add(freePtr, 32))
-            contextLength := mload(add(freePtr, 64))
-
-            // treat invalid ABI encoding as revert
-            // offset MUST be 64 for valid encoding
-            if iszero(eq(contextOffset, 64)) {
+            let contextLength := mload(add(freePtr, 64))
+            // sanitize input: at least 96 bytes, offset 64, length below returndatasize-96
+            switch
+            or(iszero(success),
+                or(lt(returndatasize(), 96),
+                    or(iszero(eq(contextOffset, 64)),
+                        gt(contextLength, sub(returndatasize(), 96)))))
+            case 1 {
                 success := 0
             }
-            // check length below returndatasize-96
-            if gt(contextLength, sub(returndatasize(), 96)) {
-                success := 0
+            default {
+               // we use freePtr, fetched before calling encodeCall. this way we reuse that memory without
+                // unnecessary memory expansion
+                context := freePtr
+                //read entire context (including length)
+                returndatacopy(context, 64, add(contextLength, 32))
+                newFreePtr := add(freePtr, add(contextLength, 32))
+                mstore(0x40, add(freePtr, add(contextLength, 32)))
             }
-            context := freePtr
-            //read entire context (including length)
-            returndatacopy(context, 64, add(contextLength,32))
-            mstore(0x40, add(freePtr, add(contextLength, 32)))
         }
 
         if (!success) {
