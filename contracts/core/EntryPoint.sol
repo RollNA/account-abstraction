@@ -581,39 +581,68 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
      * @param opIndex                            - The operation index.
      * @param op                                 - The user operation.
      * @param opInfo                             - The operation info.
-     * @param requiredPreFund                    - The required prefund amount.
      * @return context                           - The Paymaster-provided value to be passed to the 'postOp' function later
      * @return validationData                    - The Paymaster's validationData.
      */
     function _validatePaymasterPrepayment(
         uint256 opIndex,
         PackedUserOperation calldata op,
-        UserOpInfo memory opInfo,
-        uint256 requiredPreFund
+        UserOpInfo memory opInfo
     ) internal virtual returns (bytes memory context, uint256 validationData) {
         unchecked {
             uint256 preGas = gasleft();
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
             address paymaster = mUserOp.paymaster;
+            uint256 requiredPreFund = opInfo.prefund;
             if (!_tryDecrementDeposit(paymaster, requiredPreFund)) {
                 revert FailedOp(opIndex, "AA31 paymaster deposit too low");
             }
             uint256 pmVerificationGasLimit = mUserOp.paymasterVerificationGasLimit;
-            try
-                IPaymaster(paymaster).validatePaymasterUserOp{gas: pmVerificationGasLimit}(
-                    op,
-                    opInfo.userOpHash,
-                    requiredPreFund
-                )
-            returns (bytes memory _context, uint256 _validationData) {
-                context = _context;
-                validationData = _validationData;
-            } catch {
-                revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
-            }
+            (context, validationData) = _callValidatePaymasterUserOp(opIndex, op, opInfo);
             if (preGas - gasleft() > pmVerificationGasLimit) {
                 revert FailedOp(opIndex, "AA36 over paymasterVerificationGasLimit");
             }
+        }
+    }
+
+    function _callValidatePaymasterUserOp(
+        uint256 opIndex,
+        PackedUserOperation calldata op,
+        UserOpInfo memory opInfo
+    ) internal returns (bytes memory context, uint256 validationData)  {
+        uint256 freePtr = _getFreePtr();
+        bytes memory validatePaymasterCall = abi.encodeCall(
+            IPaymaster.validatePaymasterUserOp,
+            (op, opInfo.userOpHash, opInfo.prefund)
+        );
+        address paymaster = opInfo.mUserOp.paymaster;
+        bool success;
+        uint256 contextLength;
+        assembly {
+            freePtr:= mload(0x40)
+            //call and return 3 first words: offset, validation, context-length
+            success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+            let contextOffset := mload(freePtr)
+            validationData := mload(add(freePtr, 32))
+            contextLength := mload(add(freePtr, 64))
+
+            // treat invalid ABI encoding as revert
+            // offset MUST be 64 for valid encoding
+            if iszero(eq(contextOffset, 64)) {
+                success := 0
+            }
+            // check length below returndatasize-96
+            if gt(contextLength, sub(returndatasize(), 96)) {
+                success := 0
+            }
+            context := freePtr
+            //read entire context (including length)
+            returndatacopy(context, 64, add(contextLength,32))
+            mstore(0x40, add(freePtr, add(contextLength, 32)))
+        }
+
+        if (!success) {
+            revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
         }
     }
 
@@ -708,6 +737,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         require(maxGasValues <= type(uint120).max, FailedOp(opIndex, "AA94 gas values overflow"));
 
         uint256 requiredPreFund = _getRequiredPrefund(mUserOp);
+        outOpInfo.prefund = requiredPreFund;
         validationData = _validateAccountPrepayment(
             opIndex,
             userOp,
@@ -731,12 +761,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             (context, paymasterValidationData) = _validatePaymasterPrepayment(
                 opIndex,
                 userOp,
-                outOpInfo,
-                requiredPreFund
+                outOpInfo
             );
         }
         unchecked {
-            outOpInfo.prefund = requiredPreFund;
             outOpInfo.contextOffset = _getOffsetOfMemoryBytes(context);
             outOpInfo.preOpGas = preGas - gasleft() + userOp.preVerificationGas;
         }
