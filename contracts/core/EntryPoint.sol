@@ -617,7 +617,6 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         );
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
-        uint newFreePtr;
         assembly {
             //call and return 3 first words: offset, validation, context-length
             success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
@@ -637,10 +636,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                // we use freePtr, fetched before calling encodeCall. this way we reuse that memory without
                 // unnecessary memory expansion
                 context := freePtr
+                let contextDataLen := add(contextLength, 32)
                 //read entire context (including length)
-                returndatacopy(context, 64, add(contextLength, 32))
-                newFreePtr := add(freePtr, add(contextLength, 32))
-                mstore(0x40, add(freePtr, add(contextLength, 32)))
+                returndatacopy(context, 64, contextDataLen)
+                mstore(0x40, add(freePtr, contextDataLen))
             }
         }
 
