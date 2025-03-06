@@ -639,7 +639,16 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 let contextDataLen := add(contextLength, 32)
                 //read entire context (including length)
                 returndatacopy(context, 64, contextDataLen)
-                mstore(0x40, add(freePtr, contextDataLen))
+                finalize_allocation(freePtr, contextDataLen)
+            }
+
+            function finalize_allocation(memPtr, size) {
+                let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
+                mstore(64, newFreePtr)
+            }
+
+            function round_up_to_mul_of_32(value) -> result {
+                result := and(add(value, 31), not(31))
             }
         }
 
@@ -724,7 +733,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 preGas = gasleft();
         MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
         _copyUserOpToMemory(userOp, mUserOp);
-        
+
         // getUserOpHash uses temporary allocations, no required after it returns
         uint256 freePtr = _getFreePtr();
         outOpInfo.userOpHash = getUserOpHash(userOp);
