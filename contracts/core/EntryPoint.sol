@@ -724,7 +724,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 preGas = gasleft();
         MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
         _copyUserOpToMemory(userOp, mUserOp);
+        
+        // getUserOpHash uses temporary allocations, no required after it returns
+        uint256 freePtr = _getFreePtr();
         outOpInfo.userOpHash = getUserOpHash(userOp);
+        _restoreFreePtr(freePtr);
 
         // Validate all numeric values in userOp are well below 128 bit, so they can safely be added
         // and multiplied without causing overflow.
