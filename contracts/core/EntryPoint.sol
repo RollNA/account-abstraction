@@ -617,7 +617,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         );
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
-        assembly {
+        assembly ("memory-safe") {
             //call and return 3 first words: offset, validation, context-length
             success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
             let contextOffset := mload(freePtr)
