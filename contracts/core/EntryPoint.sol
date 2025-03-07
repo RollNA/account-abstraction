@@ -138,12 +138,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 _emitUserOperationEvent(opInfo, false, actualGasCost, actualGas);
                 collected = actualGasCost;
             } else {
+                uint256 freePtr = _getFreePtr();
                 emit PostOpRevertReason(
                     opInfo.userOpHash,
                     opInfo.mUserOp.sender,
                     opInfo.mUserOp.nonce,
                     Exec.getReturnData(REVERT_REASON_MAX_LEN)
                 );
+                _restoreFreePtr(freePtr);
 
                 uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
                 collected = _postExecution(
@@ -366,6 +368,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         if (callData.length > 0) {
             bool success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
             if (!success) {
+                uint256 freePtr = _getFreePtr();
                 bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                 if (result.length > 0) {
                     emit UserOperationRevertReason(
@@ -375,6 +378,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         result
                     );
                 }
+                _restoreFreePtr(freePtr);
                 mode = IPaymaster.PostOpMode.opReverted;
             }
         }
