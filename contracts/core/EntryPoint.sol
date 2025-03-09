@@ -621,30 +621,31 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         );
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
+        uint256 contextLength;
         assembly ("memory-safe") {
             //call and return 3 first words: offset, validation, context-length
             success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
-            let contextOffset := mload(freePtr)
             validationData := mload(add(freePtr, 32))
-            let contextLength := mload(add(freePtr, 64))
+            contextLength := mload(add(freePtr, 64))
+            let contextOffset := mload(freePtr)
             // sanitize input: at least 96 bytes, offset 64, length below returndatasize-96
-            switch
-            or(iszero(success),
-                or(lt(returndatasize(), 96),
-                    or(iszero(eq(contextOffset, 64)),
-                        gt(contextLength, sub(returndatasize(), 96)))))
-            case 1 {
+            if or(lt(returndatasize(), 96),
+                or(iszero(eq(contextOffset, 64)),
+                  gt(contextLength, sub(returndatasize(), 96)))) {
                 success := 0
             }
-            default {
-               // we use freePtr, fetched before calling encodeCall. this way we reuse that memory without
-                // unnecessary memory expansion
-                context := freePtr
-                let contextDataLen := add(contextLength, 32)
-                //read entire context (including length)
-                returndatacopy(context, 64, contextDataLen)
-                finalize_allocation(freePtr, contextDataLen)
-            }
+        }
+        if (!success) {
+            revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
+        }
+        assembly ("memory-safe") {
+            // we use freePtr, fetched before calling encodeCall, as return data pointer.
+            // this way we reuse that memory without unnecessary memory expansion
+            context := freePtr
+            let contextDataLen := add(contextLength, 32)
+            //read entire context (including length)
+            returndatacopy(context, 64, contextDataLen)
+            finalize_allocation(freePtr, contextDataLen)
 
             function finalize_allocation(memPtr, size) {
                 let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
@@ -656,9 +657,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             }
         }
 
-        if (!success) {
-            revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
-        }
+
     }
 
     /**
