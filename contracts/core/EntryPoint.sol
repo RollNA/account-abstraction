@@ -621,43 +621,26 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         );
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
+        uint256 contextOffset;
         uint256 contextLength;
+        uint256 returnDataSize;
         assembly ("memory-safe") {
-            //call and return 3 first words: offset, validation, context-length
-            success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+            success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 2112)
+            returnDataSize := returndatasize()
+            context := add(freePtr, 64)
+            contextOffset := mload(freePtr)
             validationData := mload(add(freePtr, 32))
             contextLength := mload(add(freePtr, 64))
-            let contextOffset := mload(freePtr)
-            // sanitize input: at least 96 bytes, offset 64, length below returndatasize-96
-            if or(lt(returndatasize(), 96),
-                or(iszero(eq(contextOffset, 64)),
-                  gt(contextLength, sub(returndatasize(), 96)))) {
-                success := 0
-            }
         }
-        if (!success) {
+        bool failedOp =
+                !success ||
+                returnDataSize < 96 ||
+                contextOffset != 64 ||
+                contextLength > (returnDataSize - 96);
+
+        if (failedOp) {
             revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
         }
-        assembly ("memory-safe") {
-            // we use freePtr, fetched before calling encodeCall, as return data pointer.
-            // this way we reuse that memory without unnecessary memory expansion
-            context := freePtr
-            let contextDataLen := add(contextLength, 32)
-            //read entire context (including length)
-            returndatacopy(context, 64, contextDataLen)
-            finalize_allocation(freePtr, contextDataLen)
-
-            function finalize_allocation(memPtr, size) {
-                let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
-                mstore(64, newFreePtr)
-            }
-
-            function round_up_to_mul_of_32(value) -> result {
-                result := and(add(value, 31), not(31))
-            }
-        }
-
-
     }
 
     /**
