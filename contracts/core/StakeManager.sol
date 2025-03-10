@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 import "../interfaces/IStakeManager.sol";
 
@@ -60,9 +60,9 @@ abstract contract StakeManager is IStakeManager {
     }
 
     /**
-     * Try to dncrement the account's deposit.
-     * @param account - The account to increment.
-     * @param amount  - The amount to increment by.
+     * Try to decrement the account's deposit.
+     * @param account - The account to decrement.
+     * @param amount  - The amount to decrement by.
      * @return true if the decrement succeeded (that is, previous balance was at least that amount)
      */
     function _tryDecrementDeposit(address account, uint256 amount) internal returns(bool) {

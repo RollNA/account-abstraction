@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.7.5;
+pragma solidity ^0.8.28;
 
 import "./PackedUserOperation.sol";
 
@@ -23,8 +23,8 @@ interface IAccount {
      *                              enough), this value will be zero.
      * @return validationData       - Packaged ValidationData structure. use `_packValidationData` and
      *                              `_unpackValidationData` to encode and decode.
-     *                              <20-byte> sigAuthorizer - 0 for valid signature, 1 to mark signature failure,
-     *                                 otherwise, an address of an "authorizer" contract.
+     *                              <20-byte> aggregatorOrSigFail - 0 for valid signature, 1 to mark signature failure,
+     *                                 otherwise, an address of an "aggregator" contract.
      *                              <6-byte> validUntil - Last timestamp this operation is valid at, or 0 for "indefinitely"
      *                              <6-byte> validAfter - First timestamp this operation is valid
      *                                                    If an account doesn't use time-range, it is enough to

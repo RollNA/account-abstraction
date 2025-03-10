@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.28;
 
 import "../interfaces/INonceManager.sol";
 
@@ -19,10 +19,7 @@ abstract contract NonceManager is INonceManager {
         return nonceSequenceNumber[sender][key] | (uint256(key) << 64);
     }
 
-    // allow an account to manually increment its own nonce.
-    // (mainly so that during construction nonce can be made non-zero,
-    // to "absorb" the gas cost of first nonce increment to 1st transaction (construction),
-    // not to 2nd transaction)
+    /// @inheritdoc INonceManager
     function incrementNonce(uint192 key) external override {
         nonceSequenceNumber[msg.sender][key]++;
     }
