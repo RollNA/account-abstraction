@@ -644,6 +644,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             returndatacopy(context, 64, contextDataLen)
             finalize_allocation(freePtr, contextDataLen)
 
+            // this is the standard solidity memory allocation finalization, copied
+            // from solidity generated code
             function finalize_allocation(memPtr, size) {
                 let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
                 mstore(64, newFreePtr)
