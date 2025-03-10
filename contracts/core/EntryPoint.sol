@@ -622,20 +622,17 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         address paymaster = opInfo.mUserOp.paymaster;
         bool success;
         uint256 contextLength;
+        uint256 contextOffset;
+        uint256 maxContextLength;
         assembly ("memory-safe") {
             //call and return 3 first words: offset, validation, context-length
             success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
             validationData := mload(add(freePtr, 32))
             contextLength := mload(add(freePtr, 64))
-            let contextOffset := mload(freePtr)
-            // sanitize input: at least 96 bytes, offset 64, length below returndatasize-96
-            if or(lt(returndatasize(), 96),
-                or(iszero(eq(contextOffset, 64)),
-                  gt(contextLength, sub(returndatasize(), 96)))) {
-                success := 0
-            }
+            contextOffset := mload(freePtr)
+            maxContextLength := sub(returndatasize(), 96)
         }
-        if (!success) {
+        if (!success || contextOffset != 64 || contextLength > maxContextLength) {
             revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
         }
         assembly ("memory-safe") {
