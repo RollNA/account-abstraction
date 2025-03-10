@@ -9,20 +9,29 @@ import "./TestPaymasterAcceptAll.sol";
  * explicitly returns a context, to test cost (for entrypoint) to call postOp
  */
 contract TestPaymasterWithPostOp is TestPaymasterAcceptAll {
-    event PostOpActualGasCost(uint256 actualGasCost);
+    event PostOpActualGasCost(uint256 actualGasCost, bytes context, bool isSame);
+
+    bytes public theContext;
 
     constructor(IEntryPoint _entryPoint) TestPaymasterAcceptAll(_entryPoint) {
+        setContext("1");
+    }
+
+    function setContext(bytes memory _context) public {
+        theContext = _context;
     }
 
     function _validatePaymasterUserOp(PackedUserOperation calldata, bytes32, uint256)
     internal virtual override view
     returns (bytes memory context, uint256 validationData) {
         // return a context, to force a call for postOp.
-        return ("1", SIG_VALIDATION_SUCCESS);
+        return (theContext, SIG_VALIDATION_SUCCESS);
     }
 
-    function _postOp(PostOpMode, bytes calldata, uint256 actualGasCost, uint256)
+    function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost, uint256)
     internal override {
-        emit PostOpActualGasCost(actualGasCost);
+        bool isSame = keccak256(context) == keccak256(theContext);
+        emit PostOpActualGasCost(actualGasCost, context, isSame);
+
     }
 }
