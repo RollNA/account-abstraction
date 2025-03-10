@@ -1398,6 +1398,9 @@ describe('EntryPoint', function () {
       })
       describe('with postOp', () => {
         it('paymaster should pay for tx including unused execution and postOp gas penalties', async function () {
+          if (process.env.COVERAGE != null) {
+            this.skip()
+          }
           const snap = await ethers.provider.send('evm_snapshot', [])
           await testPaymasterActualGasCost(true)
           await ethers.provider.send('evm_revert', [snap])

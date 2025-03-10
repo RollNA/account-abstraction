@@ -620,13 +620,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             (op, opInfo.userOpHash, opInfo.prefund)
         );
         address paymaster = opInfo.mUserOp.paymaster;
+        uint256 paymasterVerificationGasLimit = opInfo.mUserOp.paymasterVerificationGasLimit;
         bool success;
         uint256 contextLength;
         uint256 contextOffset;
         uint256 maxContextLength;
         assembly ("memory-safe") {
             //call and return 3 first words: offset, validation, context-length
-            success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+            success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
             validationData := mload(add(freePtr, 32))
             contextLength := mload(add(freePtr, 64))
             contextOffset := mload(freePtr)
