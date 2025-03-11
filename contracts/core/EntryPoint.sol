@@ -650,26 +650,16 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         if (!success || contextOffset != 64 || contextLength > maxContextLength) {
             revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
         }
+        uint256 contextDataLen;
         assembly ("memory-safe") {
             // we use freePtr, fetched before calling encodeCall, as return data pointer.
             // this way we reuse that memory without unnecessary memory expansion
             context := freePtr
-            let contextDataLen := add(contextLength, 32)
+            contextDataLen := add(contextLength, 32)
             //read entire context (including length)
             returndatacopy(context, 64, contextDataLen)
-            finalize_allocation(freePtr, contextDataLen)
-
-            // this is the standard solidity memory allocation finalization, copied
-            // from solidity generated code
-            function finalize_allocation(memPtr, size) {
-                let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
-                mstore(64, newFreePtr)
-            }
-
-            function round_up_to_mul_of_32(value) -> result {
-                result := and(add(value, 31), not(31))
-            }
         }
+        finalizeAllocation(freePtr, contextDataLen);
     }
 
     /**

@@ -111,3 +111,25 @@ function _packValidationData(
     function min(uint256 a, uint256 b) pure returns (uint256) {
         return a < b ? a : b;
     }
+
+/**
+ * standard solidity memory allocation finalization.
+ * copied from solidity generated code
+ * @param memPointer - The current memory pointer
+ * @param allocationSize - Bytes allocated from memPointer.
+ */
+    function finalizeAllocation(uint256 memPointer, uint256 allocationSize) pure {
+
+        assembly ("memory-safe"){
+            finalize_allocation(memPointer, allocationSize)
+
+            function finalize_allocation(memPtr, size) {
+                let newFreePtr := add(memPtr, round_up_to_mul_of_32(size))
+                mstore(64, newFreePtr)
+            }
+
+            function round_up_to_mul_of_32(value) -> result {
+                result := and(add(value, 31), not(31))
+            }
+        }
+    }
