@@ -3,17 +3,17 @@ import {
   createAccountOwner,
   createAddress, decodeRevertReason,
   deployEntryPoint
-} from '../../test/testutils'
-import { fillSignAndPack } from '../../test/UserOp'
+} from '../test/testutils'
+import { fillSignAndPack } from '../test/UserOp'
 import { ethers } from 'hardhat'
 import {
   EntryPoint,
   TestPaymasterWithPostOp,
   TestPaymasterWithPostOp__factory
-} from '../../typechain'
-import { parseEther } from 'ethers/lib/utils'
+} from '../typechain'
 import { expect } from 'chai'
 import { BaseContract } from 'ethers'
+import { parseEther } from 'ethers/lib/utils'
 
 describe('#postOp', () => {
   const ethersSigner = ethers.provider.getSigner()
@@ -49,7 +49,7 @@ describe('#postOp', () => {
     }, owner, entryPoint)
 
     const rcpt = await entryPoint.handleOps([op], createAddress()).then(async r => r.wait())
-    console.log(parseLogs(rcpt.logs, pm, entryPoint))
+    // console.log(parseLogs(rcpt.logs, pm, entryPoint))
     const postevent = await pm.queryFilter(pm.filters.PostOpActualGasCost())
     // console.log('postevent=', postevent)
     expect(postevent[0].args.isSame).to.be.true
