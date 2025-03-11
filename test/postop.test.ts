@@ -22,7 +22,10 @@ describe('#postOp', () => {
   const paymasters: TestPaymasterWithPostOp[] = []
   const lengths: number[] = [1, 31, 32, 33, 992, 993]
   const contexts: string[] = []
-  before(async () => {
+  before(async function () {
+    if (process.env.COVERAGE != null) {
+      return
+    }
     entryPoint = await deployEntryPoint()
 
     for (const i of lengths) {
@@ -48,7 +51,7 @@ describe('#postOp', () => {
 
     }, owner, entryPoint)
 
-    const rcpt = await entryPoint.handleOps([op], createAddress()).then(async r => r.wait())
+    await entryPoint.handleOps([op], createAddress()).then(async r => r.wait())
     // console.log(parseLogs(rcpt.logs, pm, entryPoint))
     const postevent = await pm.queryFilter(pm.filters.PostOpActualGasCost())
     // console.log('postevent=', postevent)
