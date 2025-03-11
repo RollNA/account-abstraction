@@ -891,7 +891,7 @@ describe('EntryPoint', function () {
           sender: simpleAccount.address,
           verificationGasLimit: 10000
         }, accountOwner, entryPoint)
-        await expect(entryPoint.handleOps([op1], createAddress())).to.revertedWith('AA23 reverted')
+        await expect(entryPoint.handleOps([op1], createAddress())).to.revertedWith('AA26 over verificationGasLimit')
       })
     })
 

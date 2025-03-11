@@ -471,9 +471,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                 if (initCode.length > 20) {
                     // Already validated it is an EIP-7702 delegate (and hence, already has code) - see getUserOpHash()
                     // Note: Can be called multiple times as long as an appropriate initCode is supplied
-                    senderCreator().initEip7702Sender{
-                            gas: opInfo.mUserOp.verificationGasLimit
-                        }(sender, initCode[20 :]);
+                    senderCreator().initEip7702Sender(sender, initCode[20 :]);
                 }
                 return;
             }
@@ -482,11 +480,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             if (initCode.length < 20) {
                 revert FailedOp(opIndex, "AA99 initCode too small");
             }
-            address sender1 = senderCreator().createSender{
-                    gas: opInfo.mUserOp.verificationGasLimit
-                }(initCode);
+            address sender1 = senderCreator().createSender(initCode);
             if (sender1 == address(0))
-                revert FailedOp(opIndex, "AA13 initCode failed or OOG");
+                revert FailedOp(opIndex, "AA13 initCode failed");
             if (sender1 != sender)
                 revert FailedOp(opIndex, "AA14 initCode must return sender");
             if (sender1.code.length == 0)
@@ -565,14 +561,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 missingAccountFunds
     )
     internal virtual returns (uint256 validationData) {
-        uint256 gasLimit = opInfo.mUserOp.verificationGasLimit;
+//        uint256 gasLimit = opInfo.mUserOp.verificationGasLimit;
         address sender = opInfo.mUserOp.sender;
         bool success;
         {
             uint256 saveFreePtr = _getFreePtr();
             bytes memory callData = abi.encodeCall(IAccount.validateUserOp, (op, opInfo.userOpHash, missingAccountFunds));
             assembly ("memory-safe"){
-                success := call(gasLimit, sender, 0, add(callData, 0x20), mload(callData), 0, 32)
+                success := call(gas(), sender, 0, add(callData, 0x20), mload(callData), 0, 32)
                 validationData := mload(0)
             // any return data size other than 32 is considered failure
                 if iszero(eq(returndatasize(), 32)) {
@@ -634,14 +630,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             (op, opInfo.userOpHash, opInfo.prefund)
         );
         address paymaster = opInfo.mUserOp.paymaster;
-        uint256 paymasterVerificationGasLimit = opInfo.mUserOp.paymasterVerificationGasLimit;
+//        uint256 paymasterVerificationGasLimit = opInfo.mUserOp.paymasterVerificationGasLimit;
         bool success;
         uint256 contextLength;
         uint256 contextOffset;
         uint256 maxContextLength;
         assembly ("memory-safe") {
             //call and return 3 first words: offset, validation, context-length
-            success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+            success := call(gas(), paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+//            success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
             validationData := mload(add(freePtr, 32))
             contextLength := mload(add(freePtr, 64))
             contextOffset := mload(freePtr)

@@ -151,7 +151,7 @@ describe('EntryPointSimulations', function () {
     it('should revert on oog if not enough verificationGas', async () => {
       const op = await fillSignAndPack({ sender: account.address, verificationGasLimit: 1000 }, accountOwner, entryPoint)
       await expect(simulateValidation(op, entryPoint.address)).to
-        .revertedWith('AA23 reverted')
+        .revertedWith('AA26 over verificationGasLimit')
     })
 
     it('should succeed if validateUserOp succeeds', async () => {
@@ -217,7 +217,16 @@ describe('EntryPointSimulations', function () {
         maxFeePerGas: 0
       }, accountOwner1, entryPoint)
       await expect(simulateValidation(op1, entryPoint.address, { gas: '0xF4240' }))
-        .to.revertedWith('AA13 initCode failed or OOG')
+        .to.revertedWith('AA26 over verificationGasLimit')
+
+      const op2 = await fillSignAndPack({
+        initCode: simpleAccountFactory.address + 'deadface',
+        sender,
+        verificationGasLimit: 5e5,
+        maxFeePerGas: 0
+      }, accountOwner1, entryPoint)
+      await expect(simulateValidation(op2, entryPoint.address, { gas: '0xF4240' }))
+        .to.revertedWith('AA13 initCode failed')
     })
 
     it('should succeed for creating an account', async () => {
@@ -244,7 +253,7 @@ describe('EntryPointSimulations', function () {
         sender
       }, accountOwner, entryPoint)
       const error = await simulateValidation(op1, entryPoint.address).catch(e => e)
-      expect(error.message).to.match(/initCode failed or OOG/, error)
+      expect(error.message).to.match(/initCode failed/, error)
     })
   })
 
