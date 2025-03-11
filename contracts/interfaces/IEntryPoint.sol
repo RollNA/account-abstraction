@@ -145,6 +145,13 @@ interface IEntryPoint is IStakeManager, INonceManager {
     }
 
     /**
+     * Get the EntryPoint contract's version.
+     *
+     * @return the ERC-712 value used as DOMAIN_VERSION for UserOperation hash and signature calculation.
+     */
+    function DOMAIN_VERSION() external pure returns (string memory);
+
+    /**
      * Execute a batch of UserOperations.
      * No signature aggregator is used.
      * If any account requires an aggregator (that is, it returned an aggregator when
