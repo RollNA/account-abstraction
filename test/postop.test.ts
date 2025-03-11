@@ -3,8 +3,8 @@ import {
   createAccountOwner,
   createAddress, decodeRevertReason,
   deployEntryPoint
-} from '../test/testutils'
-import { fillSignAndPack } from '../test/UserOp'
+} from './testutils'
+import { fillSignAndPack } from './UserOp'
 import { ethers } from 'hardhat'
 import {
   EntryPoint,
@@ -16,16 +16,17 @@ import { BaseContract } from 'ethers'
 import { parseEther } from 'ethers/lib/utils'
 
 describe('#postOp', () => {
+  if (process.env.COVERAGE != null) {
+    return
+  }
+
   const ethersSigner = ethers.provider.getSigner()
   let entryPoint: EntryPoint
 
   const paymasters: TestPaymasterWithPostOp[] = []
   const lengths: number[] = [1, 31, 32, 33, 992, 993]
-  const contexts: string[] = []
+
   before(async function () {
-    if (process.env.COVERAGE != null) {
-      return
-    }
     entryPoint = await deployEntryPoint()
 
     for (const i of lengths) {
@@ -34,7 +35,6 @@ describe('#postOp', () => {
       const context = '0x123456'.padEnd(strlen, 'abcdef').slice(0, strlen)
       await paymaster.setContext(context)
       paymasters.push(paymaster)
-      contexts.push(context)
       await entryPoint.depositTo(paymaster.address, { value: parseEther('1') })
     }
   })
