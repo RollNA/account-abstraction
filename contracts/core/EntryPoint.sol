@@ -639,27 +639,23 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 contextLength;
         uint256 contextOffset;
         uint256 maxContextLength;
+        uint256 len;
         assembly ("memory-safe") {
-            //call and return 3 first words: offset, validation, context-length
-            success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), freePtr, 96)
+            success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), 0, 0)
+            len := returndatasize()
+            // we use freePtr, fetched before calling encodeCall, as return data pointer.
+            // this way we reuse that memory without unnecessary memory expansion
+            returndatacopy(freePtr, 0, len)
             validationData := mload(add(freePtr, 32))
-            contextLength := mload(add(freePtr, 64))
             contextOffset := mload(freePtr)
-            maxContextLength := sub(returndatasize(), 96)
+            maxContextLength := sub(len, 96)
+            context := add(freePtr, 64)
+            contextLength := mload(context)
         }
         if (!success || contextOffset != 64 || contextLength > maxContextLength) {
             revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
         }
-        uint256 contextDataLen;
-        assembly ("memory-safe") {
-            // we use freePtr, fetched before calling encodeCall, as return data pointer.
-            // this way we reuse that memory without unnecessary memory expansion
-            context := freePtr
-            contextDataLen := add(contextLength, 32)
-            //read entire context (including length)
-            returndatacopy(context, 64, contextDataLen)
-        }
-        finalizeAllocation(freePtr, contextDataLen);
+        finalizeAllocation(freePtr, len);
     }
 
     /**
