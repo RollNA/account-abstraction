@@ -64,7 +64,7 @@ describe('Memory expansion tests', function () {
     return BigNumber.from(nonceKey++).shl(128)
   }
 
-  async function createUserOpWithGas (vgl: BigNumberish, pmVgl: number, contextLen = 1, cgl = 0, callData = '0x'): Promise<UserOperation> {
+  async function createUserOpWithGas (vgl: BigNumberish, pmVgl: number, contextLen = 1, cgl = 0, userOpSize = 0): Promise<UserOperation> {
     const methodsig = '0x3b6a02f6' // wasteGas()
     return fillAndSign({
       sender: simpleAccount.address,
@@ -91,14 +91,16 @@ describe('Memory expansion tests', function () {
     }
     return callHandleOps
   }
-  [1, 100000].forEach(wasteMemory => {
-    [1, 2000].forEach(contextSize => {
-      it(`check with wasted memory ${wasteMemory} and context ${contextSize}`, async () => {
-        const vgl = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
-          await callEntryPointWithMem(wasteMemory), 10, 100000)
-        const pmvgl = await findUserOpWithMin1(async n => createUserOpWithGas(vgl, n, contextLength), false,
-          await callEntryPointWithMem(wasteMemory), 10, 100000)
-        console.log(`waste=${wasteMemory}\tcontextSize=${contextSize}\tvgl=${vgl}, pmvgl=${pmvgl}`)
+  [1, useropsize].forEach(userOpSize => {
+    [1, wasteMemory].forEach(wasteMemory => {
+      [1, 2000].forEach(contextSize => {
+        it(`check with wasted memory ${wasteMemory} and context ${contextSize}`, async () => {
+          const vgl = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength, userOpSize), false,
+            await callEntryPointWithMem(wasteMemory), 10, 100000)
+          const pmvgl = await findUserOpWithMin1(async n => createUserOpWithGas(vgl, n, contextLength, userOpSize), false,
+            await callEntryPointWithMem(wasteMemory), 10, 100000)
+          console.log(`userppsize=${userOpSize}\twaste=${wasteMemory}\tcontextSize=${contextSize}\tvgl=${vgl}, pmvgl=${pmvgl}`)
+        })
       })
     })
   })
