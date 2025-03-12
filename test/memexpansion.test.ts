@@ -92,12 +92,13 @@ describe('Memory expansion tests', function () {
     return callHandleOps
   }
   it('should validate and check it supports memory expansion', async () => {
-    console.log('================= 0 =====================')
+    const smallMemExpansion = 1
+    console.log('check with mem-expansion', smallMemExpansion)
     const vgl0 = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
-      await callEntryPointWithMem(1), 10, 100000)
+      await callEntryPointWithMem(smallMemExpansion), 10, 100000)
     const pmvgl0 = await findUserOpWithMin1(async n => createUserOpWithGas(vgl0, n, contextLength), false,
-      await callEntryPointWithMem(1), 10, 100000)
-    console.log('================= 100000 =====================')
+      await callEntryPointWithMem(smallMemExpansion), 10, 100000)
+    console.log('check with mem-expansion', wasteMemory)
     const vgl2 = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
       await callEntryPointWithMem(wasteMemory), 10, 100000)
     const pmvgl2 = await findUserOpWithMin1(async n => createUserOpWithGas(vgl2, n, contextLength), false,

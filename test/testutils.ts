@@ -404,15 +404,25 @@ export async function findMin (testFunc: (index: number) => Promise<boolean>, mi
  */
 export async function findUserOpWithMin (f: (n: number) => Promise<UserOperation>, expectExec: boolean, entryPoint: EntryPoint, min: number, max: number, delta = 2): Promise<number> {
   const beneficiary = ethers.provider.getSigner().getAddress()
+  const callHandleOps = async (op: UserOperation): Promise<ContractReceipt> =>
+    entryPoint.handleOps([packUserOp(op)], beneficiary, { gasLimit: 1000000 })
+      .then(async r => r.wait())
+
+  return findUserOpWithMin1(f, expectExec, callHandleOps, min, max, delta)
+}
+
+export type CallHandleOpFunc = (op: UserOperation) => Promise<ContractReceipt>
+
+export async function findUserOpWithMin1 (f: (n: number) => Promise<UserOperation>, expectExec: boolean, callHandleOps: CallHandleOpFunc, min: number, max: number, delta = 2): Promise<number> {
   return await findMin(
     async n => {
       const snapshot = await ethers.provider.send('evm_snapshot', [])
       try {
         const userOp = await f(n)
         // console.log('== userop=', userOp)
-        const rcpt = await entryPoint.handleOps([packUserOp(userOp)], beneficiary, { gasLimit: 1e6 })
-          .then(async r => r.wait())
-        if (rcpt?.events?.find(e => e.event === 'UserOperationPrefundTooLow') != null) {
+        const rcpt = await callHandleOps(userOp)
+        const event = rcpt?.events?.find(e => e.event === 'UserOperationPrefundTooLow')
+        if (event != null) {
           // console.log('min', n, 'UserOperationPrefundTooLow')
           return false
         }
