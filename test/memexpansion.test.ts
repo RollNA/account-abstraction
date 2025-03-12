@@ -114,7 +114,7 @@ describe('Memory expansion tests', function () {
           // console.log(`waste (before userop)=${wasteMemory}\tuserOpSize=${userOpSize}\tcontextSize=${contextSize}\tvgl=${vgl}, pmvgl=${pmvgl} cgl=${callGas}`)
           res.push({ vgl, pmvgl, callGas })
         }
-        console.log(`waste effect on userop ${userOpSize} with context ${contextSize}:`,
+        console.log(`memalloc ${preAllocatedMemory} effect on userop ${userOpSize} with context ${contextSize}:`,
               `vgl=${res[1].vgl - res[0].vgl}`,
                 `pmvgl=${res[1].pmvgl - res[0].pmvgl}`,
                 `cgl=${res[1].callGas - res[0].callGas}`)
