@@ -643,6 +643,14 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         assembly ("memory-safe") {
             success := call(paymasterVerificationGasLimit, paymaster, 0, add(validatePaymasterCall, 0x20), mload(validatePaymasterCall), 0, 0)
             len := returndatasize()
+            // return data from validatePaymasterUserOp is (bytes context, validationData)
+            // encoded as:
+            // 32 bytes length of context (always 64)
+            // 32 bytes of validationData
+            // 32 bytes of context length
+            // context data
+            // so entire buffer size is (at least) 96+content.length.
+            //
             // we use freePtr, fetched before calling encodeCall, as return data pointer.
             // this way we reuse that memory without unnecessary memory expansion
             returndatacopy(freePtr, 0, len)
