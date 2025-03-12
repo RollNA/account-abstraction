@@ -22,11 +22,5 @@ contract TestPaymasterCustomContext is TestPaymasterAcceptAll {
     function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost, uint256)
     internal pure override {
         (context, actualGasCost);
-        if (context.length<10000) {
-            while (true) {
-                //waste gas...
-            }
-        }
-        require( context.length>10000, "revert postop");
     }
 }

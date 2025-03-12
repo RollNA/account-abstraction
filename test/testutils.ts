@@ -419,7 +419,6 @@ export async function findUserOpWithMin1 (f: (n: number) => Promise<UserOperatio
       const snapshot = await ethers.provider.send('evm_snapshot', [])
       try {
         const userOp = await f(n)
-        // console.log('== userop=', userOp)
         const rcpt = await callHandleOps(userOp)
         const event = rcpt?.events?.find(e => e.event === 'UserOperationPrefundTooLow')
         if (event != null) {
@@ -429,7 +428,7 @@ export async function findUserOpWithMin1 (f: (n: number) => Promise<UserOperatio
         if (expectExec) {
           const useropEvent = rcpt?.events?.find(e => e.event === 'UserOperationEvent')
           if (useropEvent?.args?.success !== true) {
-            // console.log(rcpt?.events?.map((e: any) => ({ ev: e.event, ...objdump(e.args!) })))
+            // console.log('exec failed. events=', rcpt?.events?.map((e: any) => ({ ev: e.event, ...objdump(e.args!) })))
 
             // console.log('min', n, 'success=false')
             return false
