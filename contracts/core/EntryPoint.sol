@@ -645,7 +645,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
             len := returndatasize()
             // return data from validatePaymasterUserOp is (bytes context, validationData)
             // encoded as:
-            // 32 bytes length of context (always 64)
+            // 32 bytes offset of context (always 64)
             // 32 bytes of validationData
             // 32 bytes of context length
             // context data
