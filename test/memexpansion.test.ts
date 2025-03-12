@@ -91,18 +91,15 @@ describe('Memory expansion tests', function () {
     }
     return callHandleOps
   }
-  it('should validate and check it supports memory expansion', async () => {
-    const smallMemExpansion = 1
-    console.log('check with mem-expansion', smallMemExpansion)
-    const vgl0 = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
-      await callEntryPointWithMem(smallMemExpansion), 10, 100000)
-    const pmvgl0 = await findUserOpWithMin1(async n => createUserOpWithGas(vgl0, n, contextLength), false,
-      await callEntryPointWithMem(smallMemExpansion), 10, 100000)
-    console.log('check with mem-expansion', wasteMemory)
-    const vgl2 = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
-      await callEntryPointWithMem(wasteMemory), 10, 100000)
-    const pmvgl2 = await findUserOpWithMin1(async n => createUserOpWithGas(vgl2, n, contextLength), false,
-      await callEntryPointWithMem(wasteMemory), 10, 100000)
-    console.log('vgl0', vgl0, pmvgl0, 'vgl2', vgl2, pmvgl2, 'diff=', vgl2 - vgl0, pmvgl2 - pmvgl0)
+  [1, 100000].forEach(wasteMemory => {
+    [1, 2000].forEach(contextSize => {
+      it(`check with wasted memory ${wasteMemory} and context ${contextSize}`, async () => {
+        const vgl = await findUserOpWithMin1(async n => createUserOpWithGas(n, 100000, contextLength), false,
+          await callEntryPointWithMem(wasteMemory), 10, 100000)
+        const pmvgl = await findUserOpWithMin1(async n => createUserOpWithGas(vgl, n, contextLength), false,
+          await callEntryPointWithMem(wasteMemory), 10, 100000)
+        console.log(`waste=${wasteMemory}\tcontextSize=${contextSize}\tvgl=${vgl}, pmvgl=${pmvgl}`)
+      })
+    })
   })
 })
