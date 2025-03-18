@@ -20,12 +20,11 @@ import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-/*
- * Account-Abstraction (EIP-4337) singleton EntryPoint implementation.
+/**
+ * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
  * Only one instance required on each chain.
+ * @custom:security-contact https://bounty.ethereum.org
  */
-
-/// @custom:security-contact https://bounty.ethereum.org
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, ERC165, EIP712 {
 
     using UserOperationLib for PackedUserOperation;
