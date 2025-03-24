@@ -77,7 +77,7 @@ hardhat deploy --network {net}
 This repository also includes a number of audited base classes and utilities that can simplify the development of AA related contracts.
 
 ## Usage
-### For javascript projects integrating the library 
+### For projects integrating the library 
 
 If you are building a project that uses account abstraction and want to integrate our contracts:
 
@@ -91,7 +91,7 @@ yarn add @account-abstraction/contracts
 import "@account-abstraction/contracts/core/BasePaymaster.sol";
 
 contract MyCustomPaymaster is BasePaymaster {
-/// @inheritdoc BasePaymaster
+    /// implement your gas payment logic here
     function _validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 userOpHash,
@@ -115,9 +115,9 @@ contract MyCustomPaymaster is BasePaymaster {
 ```bash
 import "@account-abstraction/contracts/core/BaseAccount.sol";
 
-Contract MyAccount is BaseAccount {
+contract MyAccount is BaseAccount {
 
-    /// implement template method of BaseAccount
+    /// implement your authentication logic here
     function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
     internal override virtual returns (uint256 validationData) {
 
