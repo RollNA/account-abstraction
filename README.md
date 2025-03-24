@@ -19,6 +19,7 @@ Account abstraction allows users to interact with Ethereum using smart contract 
 
 - **EntryPoint Contract** (`contracts/core/EntryPoint.sol`): The central contract that processes UserOperations
 - **BaseAccount** (`contracts/core/BaseAccount.sol`): Base implementation for smart contract accounts
+- **BasePaymaster** (`contracts/core/BasePaymaster.sol`): Helper class for creating a paymaster
 - **StakeManager** (`contracts/core/StakeManager.sol`): Manages deposits and stakes for accounts and paymasters
 - **NonceManager** (`contracts/core/NonceManager.sol`): Handles nonce management for accounts
 - **UserOperationLib** (`contracts/core/UserOperationLib.sol`): Utilities for working with UserOperations
