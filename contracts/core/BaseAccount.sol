@@ -44,7 +44,8 @@ abstract contract BaseAccount is IAccount {
     /**
      * execute a single call from the account.
      */
-    function execute(address target, uint256 value, bytes calldata data) virtual external {
+    function execute(address target, uint256 value, bytes calldata data,uint256 deadline) virtual external {
+        _requireDeadline(deadline);
         _requireForExecute();
 
         bool ok = Exec.call(target, value, data, gasleft());
@@ -59,7 +60,8 @@ abstract contract BaseAccount is IAccount {
      * If the batch reverts, and it contains more than a single call, then wrap the revert with ExecuteError,
      *  to mark the failing call index.
      */
-    function executeBatch(Call[] calldata calls) virtual external {
+    function executeBatch(Call[] calldata calls,uint256 deadline) virtual external {
+        _requireDeadline(deadline);
         _requireForExecute();
 
         uint256 callsLength = calls.length;
@@ -86,6 +88,10 @@ abstract contract BaseAccount is IAccount {
         validationData = _validateSignature(userOp, userOpHash);
         _validateNonce(userOp.nonce);
         _payPrefund(missingAccountFunds);
+    }
+
+    function _requireDeadline(uint256 deadline) internal view virtual {
+        require(deadline >= block.timestamp,"account: Expired");
     }
 
     /**
