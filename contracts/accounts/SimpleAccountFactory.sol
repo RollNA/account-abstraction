@@ -15,11 +15,11 @@ import "./SimpleAccount.sol";
  */
 contract SimpleAccountFactory {
     SimpleAccount public immutable accountImplementation;
-    ISenderCreator public immutable senderCreator;
+    IEntryPoint public immutable entryPoint;
 
     constructor(IEntryPoint _entryPoint) {
         accountImplementation = new SimpleAccount(_entryPoint);
-        senderCreator = _entryPoint.senderCreator();
+        entryPoint = _entryPoint;
     }
 
     /**
@@ -29,7 +29,7 @@ contract SimpleAccountFactory {
      * This method returns an existing account address so that entryPoint.getSenderAddress() would work even after account creation
      */
     function createAccount(address owner,uint256 salt) public returns (SimpleAccount ret) {
-        require(msg.sender == address(senderCreator), "only callable from SenderCreator");
+        require(msg.sender == address(entryPoint), "only callable from SenderCreator");
         address addr = getAddress(owner, salt);
         uint256 codeSize = addr.code.length;
         if (codeSize > 0) {
