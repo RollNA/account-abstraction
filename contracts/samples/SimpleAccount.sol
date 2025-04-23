@@ -54,7 +54,8 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     /**
      * execute a transaction (called directly from owner, or by entryPoint)
      */
-    function execute(address dest, uint256 value, bytes calldata func) external {
+    function execute(address dest, uint256 value, bytes calldata func,uint256 deadline) external {
+        _requireDeadline(deadline);
         _requireFromEntryPointOrOwner();
         _call(dest, value, func);
     }
@@ -62,11 +63,13 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     /**
      * execute a sequence of transactions
      */
-    function executeBatch(address[] calldata dest, bytes[] calldata func) external {
+    function executeBatch(address[] calldata dest,uint256[] calldata values, bytes[] calldata func,uint256 deadline) external {
+        _requireDeadline(deadline);
         _requireFromEntryPointOrOwner();
         require(dest.length == func.length, "wrong array lengths");
+        require(dest.length == values.length, "wrong array lengths");
         for (uint256 i = 0; i < dest.length; i++) {
-            _call(dest[i], 0, func[i]);
+            _call(dest[i], values[i], func[i]);
         }
     }
 
@@ -87,6 +90,10 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     // Require the function call went through EntryPoint or owner
     function _requireFromEntryPointOrOwner() internal view {
         require(msg.sender == address(entryPoint()) || msg.sender == owner, "account: not Owner or EntryPoint");
+    }
+
+    function _requireDeadline(uint256 deadline) internal view {
+        require(deadline >= block.timestamp,"account: Expired");
     }
 
     /// implement template method of BaseAccount
